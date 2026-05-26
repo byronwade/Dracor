@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -10,62 +10,90 @@ import { RACES, getRaceById, DRAGON_MEMORIES, STARTER_WEAPONS } from "@dracor/ga
 
 const CharacterViewer = dynamic(
   () => import("@/components/CharacterViewer").then((mod) => mod.CharacterViewer),
-  { ssr: false, loading: () => <div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-ember-500 border-t-transparent" /></div> }
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-full items-center justify-center bg-stone-950">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-ember-500/30 border-t-ember-500" />
+          <p className="font-display text-xs tracking-widest text-stone-600 uppercase">Summoning</p>
+        </div>
+      </div>
+    ),
+  }
 );
 
 type WizardStep = "race" | "memory" | "weapon" | "appearance" | "name";
 
 const STEPS: WizardStep[] = ["race", "memory", "weapon", "appearance", "name"];
-const STEP_LABELS: Record<WizardStep, string> = {
-  race: "Lineage",
-  memory: "Dragon Memory",
-  weapon: "Weapon",
-  appearance: "Appearance",
-  name: "Identity",
+const STEP_TITLES: Record<WizardStep, string> = {
+  race: "Choose Your Lineage",
+  memory: "Awaken Your Memory",
+  weapon: "Claim Your Weapon",
+  appearance: "Shape Your Form",
+  name: "Speak Your Name",
+};
+const STEP_LORE: Record<WizardStep, string> = {
+  race: "The blood of five peoples flows through the frontier. Each carries a different legacy from before the Sundering.",
+  memory: "Every descendant of the frontier carries a fragment of draconic power — an echo of the dragons who died shaping this world.",
+  weapon: "You awaken on the Old Road with a single weapon in hand. It chose you as much as you chose it.",
+  appearance: "Your form tells a story before you speak a word. The frontier reads faces, scars, and markings like maps.",
+  name: "A name is power on the frontier. It is the first thing enemies learn, and the last thing they forget.",
 };
 
-function StepIndicator({ currentStep, steps }: { currentStep: WizardStep; steps: WizardStep[] }) {
-  const currentIdx = steps.indexOf(currentStep);
+function StepNav({ currentStep, steps }: { currentStep: WizardStep; steps: WizardStep[] }) {
+  const idx = steps.indexOf(currentStep);
   return (
-    <div className="flex items-center justify-center gap-1 px-4 py-3">
-      {steps.map((step, idx) => (
-        <div key={step} className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
+      {steps.map((s, i) => (
+        <div key={s} className="flex items-center">
           <div
-            className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ${
-              idx < currentIdx
-                ? "bg-ember-500 text-white"
-                : idx === currentIdx
-                  ? "border-2 border-ember-500 bg-ember-500/20 text-ember-400"
-                  : "border border-stone-700 bg-stone-800/50 text-stone-500"
+            className={`h-1.5 w-8 rounded-full transition-all duration-500 ${
+              i < idx ? "bg-ember-500" : i === idx ? "bg-ember-500/60 animate-glow-pulse" : "bg-stone-800"
             }`}
-          >
-            {idx < currentIdx ? "✓" : idx + 1}
-          </div>
-          {idx < steps.length - 1 && (
-            <div
-              className={`h-0.5 w-6 transition-all duration-300 ${
-                idx < currentIdx ? "bg-ember-500" : "bg-stone-700"
-              }`}
-            />
-          )}
+          />
+          {i < steps.length - 1 && <div className="w-0.5" />}
         </div>
       ))}
     </div>
   );
 }
 
-function StatBar({ label, value, max = 12, color }: { label: string; value: number; max?: number; color: string }) {
-  const pct = (value / max) * 100;
+function AnimatedStatBar({
+  label,
+  value,
+  max = 12,
+  color,
+  delay = 0,
+}: {
+  label: string;
+  value: number;
+  max?: number;
+  color: string;
+  delay?: number;
+}) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setWidth((value / max) * 100), 100 + delay);
+    return () => clearTimeout(t);
+  }, [value, max, delay]);
+
   return (
-    <div className="flex items-center gap-3">
-      <span className="w-16 text-xs font-medium text-stone-400 uppercase tracking-wider">{label}</span>
-      <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-stone-800">
+    <div className="group flex items-center gap-2">
+      <span className="w-10 text-[10px] font-bold uppercase tracking-wider text-stone-500 group-hover:text-stone-300 transition-colors">
+        {label}
+      </span>
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-stone-800/80">
         <div
-          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${color}`}
-          style={{ width: `${pct}%` }}
+          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out ${color}`}
+          style={{ width: `${width}%`, transitionDelay: `${delay}ms` }}
+        />
+        <div
+          className={`absolute inset-y-0 left-0 rounded-full blur-sm opacity-50 ${color}`}
+          style={{ width: `${width}%`, transitionDelay: `${delay}ms`, transition: "width 700ms ease-out" }}
         />
       </div>
-      <span className="w-6 text-right text-xs font-bold text-stone-300">{value}</span>
+      <span className="w-5 text-right text-[11px] font-black text-stone-300 tabular-nums">{value}</span>
     </div>
   );
 }
@@ -82,93 +110,109 @@ function RaceSelectionStep({
   return (
     <div className="flex h-full flex-col lg:flex-row">
       {/* Left: Race list */}
-      <div className="flex flex-col gap-2 overflow-y-auto border-r border-stone-800/50 p-4 lg:w-80">
-        <h2 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-500">
-          Choose Your Lineage
-        </h2>
-        {RACES.map((r) => (
-          <button
-            key={r.id}
-            onClick={() => onSelect(r.id)}
-            className={`group relative rounded-lg border p-3 text-left transition-all duration-200 ${
-              selectedRace === r.id
-                ? "border-ember-500/80 bg-ember-500/10 shadow-lg shadow-ember-500/5"
-                : "border-stone-800 bg-stone-900/30 hover:border-stone-600 hover:bg-stone-800/50"
-            }`}
-          >
-            <h3 className={`text-sm font-bold ${selectedRace === r.id ? "text-ember-400" : "text-stone-200"}`}>
-              {r.name}
-            </h3>
-            <p className="mt-0.5 text-xs text-stone-500">{r.tagline}</p>
-          </button>
-        ))}
+      <div className="wizard-panel flex flex-col gap-1.5 border-r p-4 lg:w-72">
+        {RACES.map((r) => {
+          const isActive = selectedRace === r.id;
+          return (
+            <button
+              key={r.id}
+              onClick={() => onSelect(r.id)}
+              className={`group relative rounded-lg border p-3 text-left transition-all duration-300 ${
+                isActive
+                  ? "border-ember-500/60 bg-gradient-to-r from-ember-500/10 to-transparent shadow-lg shadow-ember-500/5"
+                  : "border-transparent bg-stone-900/20 hover:border-stone-700/50 hover:bg-stone-800/30"
+              }`}
+            >
+              {isActive && (
+                <div className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r bg-ember-500" />
+              )}
+              <h3 className={`font-display text-sm tracking-wide ${isActive ? "text-ember-400 text-shadow-ember" : "text-stone-300 group-hover:text-stone-100"}`}>
+                {r.name}
+              </h3>
+              <p className="mt-0.5 text-[10px] text-stone-600 leading-relaxed">{r.tagline}</p>
+            </button>
+          );
+        })}
       </div>
 
       {/* Center: 3D Viewer */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-h-[300px]">
         {selectedRace ? (
           <CharacterViewer raceId={selectedRace} autoRotate />
         ) : (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-stone-500 italic">Select a lineage to preview</p>
+          <div className="flex h-full items-center justify-center bg-stone-950">
+            <div className="text-center">
+              <p className="font-display text-lg text-stone-700 tracking-wider">Choose a Lineage</p>
+              <p className="mt-1 text-xs text-stone-800">Select from the races of the frontier</p>
+            </div>
+          </div>
+        )}
+        {/* Bottom gradient overlay with race name */}
+        {race && (
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-stone-950 via-stone-950/60 to-transparent p-6 pt-16">
+            <h2 className="font-display text-3xl font-bold tracking-wide text-stone-100 text-shadow-sm">
+              {race.name}
+            </h2>
+            <p className="mt-1 text-sm italic text-ember-400/80">{race.tagline}</p>
           </div>
         )}
       </div>
 
       {/* Right: Race details */}
       {race && (
-        <div className="overflow-y-auto border-l border-stone-800/50 p-5 lg:w-96">
-          <div className="mb-4">
-            <h2 className="text-2xl font-black text-stone-100">{race.name}</h2>
-            <p className="text-sm italic text-ember-400">{race.tagline}</p>
+        <div className="wizard-panel flex flex-col gap-5 overflow-y-auto border-l p-5 lg:w-[380px] animate-fade-in">
+          {/* Lore */}
+          <div className="relative">
+            <p className="text-[13px] leading-relaxed text-stone-400">{race.description}</p>
+            <div className="mt-3 border-l-2 border-ember-500/30 pl-3">
+              <p className="text-[11px] italic leading-relaxed text-stone-500">{race.lore.slice(0, 180)}...</p>
+            </div>
           </div>
 
-          <p className="mb-4 text-sm leading-relaxed text-stone-400">{race.description}</p>
-
           {/* Stats */}
-          <div className="mb-5 rounded-lg border border-stone-800 bg-stone-900/50 p-4">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">
-              Base Attributes
-            </h3>
-            <div className="space-y-2">
-              <StatBar label="STR" value={race.baseStats.strength} color="bg-red-500" />
-              <StatBar label="AGI" value={race.baseStats.agility} color="bg-green-500" />
-              <StatBar label="VIT" value={race.baseStats.vitality} color="bg-amber-500" />
-              <StatBar label="SPI" value={race.baseStats.spirit} color="bg-purple-500" />
-              <StatBar label="FOC" value={race.baseStats.focus} color="bg-blue-500" />
+          <div className="rounded-lg border border-stone-800/50 bg-stone-900/30 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-display text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">
+                Attributes
+              </h3>
+              <span className="text-[10px] tabular-nums text-stone-600">
+                {Object.values(race.baseStats).reduce((a, b) => a + b, 0)} total
+              </span>
             </div>
-            <p className="mt-2 text-center text-xs text-stone-600">
-              Total: {Object.values(race.baseStats).reduce((a, b) => a + b, 0)} points
-            </p>
+            <div className="space-y-2.5">
+              <AnimatedStatBar label="STR" value={race.baseStats.strength} color="bg-red-500" delay={0} />
+              <AnimatedStatBar label="AGI" value={race.baseStats.agility} color="bg-emerald-500" delay={80} />
+              <AnimatedStatBar label="VIT" value={race.baseStats.vitality} color="bg-amber-500" delay={160} />
+              <AnimatedStatBar label="SPI" value={race.baseStats.spirit} color="bg-violet-500" delay={240} />
+              <AnimatedStatBar label="FOC" value={race.baseStats.focus} color="bg-sky-500" delay={320} />
+            </div>
           </div>
 
           {/* Abilities */}
-          <div className="mb-5">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">
-              Racial Abilities
+          <div>
+            <h3 className="mb-2.5 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">
+              Racial Powers
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {race.abilities.map((ability) => (
                 <div
                   key={ability.id}
-                  className="rounded-lg border border-stone-800 bg-stone-900/30 p-3"
+                  className="rounded-lg border border-stone-800/40 bg-stone-900/20 p-3 transition-colors hover:border-stone-700/50"
                 >
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                        ability.type === "passive"
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-sky-500/20 text-sky-400"
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        ability.type === "passive" ? "bg-emerald-400" : "bg-sky-400"
                       }`}
-                    >
-                      {ability.type}
-                    </span>
-                    <h4 className="text-sm font-bold text-stone-200">{ability.name}</h4>
+                    />
+                    <h4 className="text-[13px] font-bold text-stone-200">{ability.name}</h4>
                     {ability.cooldown && (
-                      <span className="ml-auto text-xs text-stone-600">{ability.cooldown}s CD</span>
+                      <span className="ml-auto rounded bg-stone-800/80 px-1.5 py-0.5 text-[9px] text-stone-500">
+                        {ability.cooldown}s
+                      </span>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-stone-400">{ability.description}</p>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-stone-500">{ability.description}</p>
                 </div>
               ))}
             </div>
@@ -176,17 +220,17 @@ function RaceSelectionStep({
 
           {/* Traits */}
           <div>
-            <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-500">
-              Physical Traits
+            <h3 className="mb-2 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">
+              Distinguishing Traits
             </h3>
-            <ul className="space-y-1">
+            <div className="space-y-1.5">
               {race.traits.map((trait, i) => (
-                <li key={i} className="flex items-start gap-2 text-xs text-stone-400">
-                  <span className="mt-0.5 text-ember-500">◆</span>
+                <p key={i} className="flex items-start gap-2 text-[11px] text-stone-500">
+                  <span className="mt-1 block h-1 w-1 flex-shrink-0 rounded-full bg-ember-500/60" />
                   {trait}
-                </li>
+                </p>
               ))}
-            </ul>
+            </div>
           </div>
         </div>
       )}
@@ -203,35 +247,41 @@ function MemorySelectionStep({
   selectedRace: RaceId;
   onSelect: (id: DragonMemory) => void;
 }) {
+  const memoryLore: Record<string, string> = {
+    ember: "The Ember burns brightest in those who refuse to be extinguished. It is rage made purpose, fury given form. In the darkest moments, when all seems lost, the Ember ignites — and everything burns.",
+    stone: "The Stone remembers what mountains remember: that all things pass, that patience outlasts fury, that the world breaks itself against those who will not move. It is the quiet power of endurance.",
+    storm: "The Storm does not announce itself — it simply arrives. Those who carry its memory move like lightning: there and gone, leaving only the thunder of their passing. Speed is not haste. It is precision at velocity.",
+  };
+
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      {/* Center: 3D Viewer */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-h-[300px]">
         <CharacterViewer raceId={selectedRace} memory={selectedMemory || undefined} autoRotate />
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-stone-950 to-transparent p-6">
-          <p className="text-center text-sm text-stone-400">
-            Your Dragon Memory determines your elemental affinity and progression path
-          </p>
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-transparent p-8 pt-20">
+          {selectedMemory && (
+            <p className="mx-auto max-w-md text-center text-[13px] italic leading-relaxed text-stone-400 animate-fade-in">
+              &ldquo;{memoryLore[selectedMemory]}&rdquo;
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Right: Memory selection */}
-      <div className="flex flex-col gap-4 overflow-y-auto border-l border-stone-800/50 p-6 lg:w-[420px]">
+      <div className="wizard-panel flex flex-col gap-4 border-l p-6 lg:w-[400px]">
         <div className="mb-2">
-          <h2 className="text-xl font-black text-stone-100">Dragon Memory</h2>
-          <p className="text-sm text-stone-400">
-            A fragment of ancient draconic power burns within every Dracor descendant. Choose which memory stirs in your blood.
+          <h2 className="font-display text-xl tracking-wide text-stone-100">Dragon Memory</h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
+            A fragment of ancient power burns within you. Which memory stirs in your blood?
           </p>
         </div>
 
         {DRAGON_MEMORIES.map((mem) => {
           const isSelected = selectedMemory === mem.id;
-          const colorMap: Record<string, { border: string; bg: string; text: string; glow: string }> = {
-            ember: { border: "border-orange-500", bg: "bg-orange-500/10", text: "text-orange-400", glow: "shadow-orange-500/20" },
-            stone: { border: "border-amber-600", bg: "bg-amber-600/10", text: "text-amber-500", glow: "shadow-amber-600/20" },
-            storm: { border: "border-sky-500", bg: "bg-sky-500/10", text: "text-sky-400", glow: "shadow-sky-500/20" },
+          const colorSchemes: Record<string, { ring: string; glow: string; text: string; bg: string }> = {
+            ember: { ring: "ring-orange-500/50", glow: "shadow-orange-500/20", text: "text-orange-400", bg: "bg-orange-500/8" },
+            stone: { ring: "ring-amber-600/50", glow: "shadow-amber-600/20", text: "text-amber-400", bg: "bg-amber-500/8" },
+            storm: { ring: "ring-sky-500/50", glow: "shadow-sky-500/20", text: "text-sky-400", bg: "bg-sky-500/8" },
           };
-          const colors = colorMap[mem.id] || colorMap.ember;
+          const cs = colorSchemes[mem.id] || colorSchemes.ember;
 
           return (
             <button
@@ -239,32 +289,29 @@ function MemorySelectionStep({
               onClick={() => onSelect(mem.id as DragonMemory)}
               className={`relative rounded-xl border p-5 text-left transition-all duration-300 ${
                 isSelected
-                  ? `${colors.border} ${colors.bg} shadow-lg ${colors.glow}`
-                  : "border-stone-800 bg-stone-900/30 hover:border-stone-600"
+                  ? `border-transparent ring-2 ${cs.ring} ${cs.bg} shadow-xl ${cs.glow}`
+                  : "border-stone-800/50 bg-stone-900/20 hover:border-stone-700/60 hover:bg-stone-800/20"
               }`}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-full ${
-                    isSelected ? colors.bg : "bg-stone-800"
-                  }`}
-                >
-                  <span className="text-2xl">
+              <div className="flex items-center gap-4">
+                <div className={`flex h-11 w-11 items-center justify-center rounded-full transition-all ${
+                  isSelected ? cs.bg + " ring-1 " + cs.ring : "bg-stone-800/60"
+                }`}>
+                  <span className="text-xl">
                     {mem.id === "ember" ? "🔥" : mem.id === "stone" ? "🪨" : "⚡"}
                   </span>
                 </div>
-                <div>
-                  <h3 className={`text-lg font-bold ${isSelected ? colors.text : "text-stone-200"}`}>
+                <div className="flex-1">
+                  <h3 className={`font-display text-base tracking-wide ${isSelected ? cs.text : "text-stone-200"}`}>
                     {mem.name}
                   </h3>
-                  <p className="text-xs text-stone-500">Element: {mem.element}</p>
+                  <p className="text-[11px] text-stone-600">Element: {mem.element}</p>
                 </div>
               </div>
-              <p className="mt-3 text-sm text-stone-400">{mem.description}</p>
-              <div className="mt-3 rounded-md bg-stone-800/50 px-3 py-2">
-                <p className="text-xs font-medium text-stone-300">
-                  <span className="text-stone-500">Passive:</span> {mem.passiveBonus}
-                </p>
+              <p className="mt-3 text-[12px] leading-relaxed text-stone-500">{mem.description}</p>
+              <div className="mt-3 flex items-center gap-2 rounded-md bg-stone-800/30 px-3 py-2">
+                <div className={`h-1 w-1 rounded-full ${isSelected ? "bg-current " + cs.text : "bg-stone-600"}`} />
+                <p className="text-[11px] font-medium text-stone-400">{mem.passiveBonus}</p>
               </div>
             </button>
           );
@@ -285,35 +332,41 @@ function WeaponSelectionStep({
   selectedMemory: DragonMemory | null;
   onSelect: (id: WeaponType) => void;
 }) {
+  const weaponLore: Record<string, string> = {
+    blade: "Steel speaks a simple language: cut, parry, riposte. The blade is civilization's answer to chaos — order imposed one edge at a time.",
+    bow: "Distance is safety. Distance is power. The bow turns patience into lethality and turns a single archer into an army's nightmare.",
+    staff: "Wood and will. The staff channels what the body cannot contain — raw elemental force shaped by focus into devastation.",
+  };
+
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      {/* Center: 3D Viewer */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-h-[300px]">
         <CharacterViewer
           raceId={selectedRace}
           memory={selectedMemory || undefined}
           weapon={selectedWeapon || undefined}
           autoRotate
         />
+        {selectedWeapon && (
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-transparent p-8 pt-20">
+            <p className="mx-auto max-w-md text-center text-[13px] italic leading-relaxed text-stone-400 animate-fade-in">
+              &ldquo;{weaponLore[selectedWeapon]}&rdquo;
+            </p>
+          </div>
+        )}
       </div>
 
-      {/* Right: Weapon selection */}
-      <div className="flex flex-col gap-4 overflow-y-auto border-l border-stone-800/50 p-6 lg:w-[420px]">
+      <div className="wizard-panel flex flex-col gap-4 border-l p-6 lg:w-[400px]">
         <div className="mb-2">
-          <h2 className="text-xl font-black text-stone-100">Choose Your Weapon</h2>
-          <p className="text-sm text-stone-400">
-            You awaken on the Old Road with a single weapon in hand. This will define your combat style.
+          <h2 className="font-display text-xl tracking-wide text-stone-100">Your Weapon</h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
+            You awaken with one weapon in hand. It will define how you meet the world.
           </p>
         </div>
 
         {STARTER_WEAPONS.map((w) => {
           const weaponId = w.metadata?.weaponClass as WeaponType;
           const isSelected = selectedWeapon === weaponId;
-          const iconMap: Record<string, string> = {
-            blade: "⚔️",
-            bow: "🏹",
-            staff: "🪄",
-          };
 
           return (
             <button
@@ -321,44 +374,42 @@ function WeaponSelectionStep({
               onClick={() => onSelect(weaponId)}
               className={`relative rounded-xl border p-5 text-left transition-all duration-300 ${
                 isSelected
-                  ? "border-ember-500/80 bg-ember-500/10 shadow-lg shadow-ember-500/10"
-                  : "border-stone-800 bg-stone-900/30 hover:border-stone-600"
+                  ? "border-transparent ring-2 ring-ember-500/40 bg-ember-500/5 shadow-xl shadow-ember-500/10"
+                  : "border-stone-800/50 bg-stone-900/20 hover:border-stone-700/60 hover:bg-stone-800/20"
               }`}
             >
               <div className="flex items-center gap-4">
-                <div
-                  className={`flex h-14 w-14 items-center justify-center rounded-lg ${
-                    isSelected ? "bg-ember-500/20" : "bg-stone-800"
-                  }`}
-                >
-                  <span className="text-3xl">{iconMap[weaponId] || "⚔️"}</span>
+                <div className={`flex h-12 w-12 items-center justify-center rounded-lg transition-all ${
+                  isSelected ? "bg-ember-500/15 ring-1 ring-ember-500/30" : "bg-stone-800/60"
+                }`}>
+                  <span className="text-2xl">
+                    {weaponId === "blade" ? "⚔️" : weaponId === "bow" ? "🏹" : "🪄"}
+                  </span>
                 </div>
                 <div className="flex-1">
-                  <h3
-                    className={`text-lg font-bold ${isSelected ? "text-ember-400" : "text-stone-200"}`}
-                  >
+                  <h3 className={`font-display text-base tracking-wide ${isSelected ? "text-ember-400" : "text-stone-200"}`}>
                     {w.name}
                   </h3>
-                  <p className="text-xs text-stone-500">{w.description}</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-stone-500">{w.description}</p>
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                <div className="rounded-md bg-stone-800/50 p-2 text-center">
-                  <p className="text-xs text-stone-500">Damage</p>
-                  <p className="text-sm font-bold text-stone-200">
-                    {w.damageMin}-{w.damageMax}
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-stone-800/40 p-2.5 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-stone-600">Damage</p>
+                  <p className="mt-0.5 text-sm font-black tabular-nums text-stone-200">
+                    {w.damageMin}–{w.damageMax}
                   </p>
                 </div>
-                <div className="rounded-md bg-stone-800/50 p-2 text-center">
-                  <p className="text-xs text-stone-500">Speed</p>
-                  <p className="text-sm font-bold text-stone-200">
+                <div className="rounded-lg bg-stone-800/40 p-2.5 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-stone-600">Speed</p>
+                  <p className="mt-0.5 text-sm font-black tabular-nums text-stone-200">
                     {(w.metadata?.attackSpeed as number)?.toFixed(1)}x
                   </p>
                 </div>
-                <div className="rounded-md bg-stone-800/50 p-2 text-center">
-                  <p className="text-xs text-stone-500">Type</p>
-                  <p className="text-sm font-bold text-stone-200 capitalize">{weaponId}</p>
+                <div className="rounded-lg bg-stone-800/40 p-2.5 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-stone-600">Class</p>
+                  <p className="mt-0.5 text-sm font-black capitalize text-stone-200">{weaponId}</p>
                 </div>
               </div>
             </button>
@@ -377,150 +428,57 @@ function AppearanceStep({
 }: {
   selectedRace: RaceId;
   selectedMemory: DragonMemory | null;
-  appearance: {
-    eyeColor: string;
-    skinTone: string;
-    marking: string;
-    hairStyle: string;
-    uniqueFeature: string;
-  };
+  appearance: { eyeColor: string; skinTone: string; marking: string; hairStyle: string; uniqueFeature: string };
   onUpdate: (field: string, value: string) => void;
 }) {
   const race = getRaceById(selectedRace);
   if (!race) return null;
-
   const opts = race.appearance;
+
+  function OptionGrid({ label, options, selected, field }: { label: string; options: string[]; selected: string; field: string }) {
+    return (
+      <div>
+        <label className="mb-2 block font-display text-[10px] font-bold uppercase tracking-[0.2em] text-stone-500">
+          {label}
+        </label>
+        <div className="grid grid-cols-3 gap-1.5">
+          {options.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => onUpdate(field, opt)}
+              className={`rounded-lg border px-2.5 py-2 text-[11px] font-medium transition-all duration-200 ${
+                selected === opt
+                  ? "border-ember-500/50 bg-ember-500/8 text-ember-400 shadow-sm shadow-ember-500/10"
+                  : "border-stone-800/40 bg-stone-900/20 text-stone-500 hover:border-stone-700/50 hover:text-stone-300"
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      {/* Center: 3D Viewer */}
-      <div className="relative flex-1">
-        <CharacterViewer
-          raceId={selectedRace}
-          memory={selectedMemory || undefined}
-          appearance={appearance}
-          autoRotate
-        />
+      <div className="relative flex-1 min-h-[300px]">
+        <CharacterViewer raceId={selectedRace} memory={selectedMemory || undefined} appearance={appearance} autoRotate />
       </div>
 
-      {/* Right: Appearance options */}
-      <div className="flex flex-col gap-5 overflow-y-auto border-l border-stone-800/50 p-6 lg:w-[420px]">
-        <div className="mb-1">
-          <h2 className="text-xl font-black text-stone-100">Customize Appearance</h2>
-          <p className="text-sm text-stone-400">
-            Shape your physical form. These traits mark you as unique among your kind.
+      <div className="wizard-panel flex flex-col gap-5 overflow-y-auto border-l p-5 lg:w-[400px]">
+        <div>
+          <h2 className="font-display text-xl tracking-wide text-stone-100">Appearance</h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
+            Shape your physical form. Every mark tells a story on the frontier.
           </p>
         </div>
 
-        {/* Eye Color */}
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-stone-500">
-            Eye Color
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {opts.eyeColors.map((color) => (
-              <button
-                key={color}
-                onClick={() => onUpdate("eyeColor", color)}
-                className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                  appearance.eyeColor === color
-                    ? "border-ember-500 bg-ember-500/10 text-ember-400"
-                    : "border-stone-700 bg-stone-800/50 text-stone-400 hover:border-stone-600"
-                }`}
-              >
-                {color}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Skin Tone */}
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-stone-500">
-            Skin Tone
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {opts.skinTones.map((tone) => (
-              <button
-                key={tone}
-                onClick={() => onUpdate("skinTone", tone)}
-                className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                  appearance.skinTone === tone
-                    ? "border-ember-500 bg-ember-500/10 text-ember-400"
-                    : "border-stone-700 bg-stone-800/50 text-stone-400 hover:border-stone-600"
-                }`}
-              >
-                {tone}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Markings */}
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-stone-500">
-            Markings
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {opts.markings.map((mark) => (
-              <button
-                key={mark}
-                onClick={() => onUpdate("marking", mark)}
-                className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                  appearance.marking === mark
-                    ? "border-ember-500 bg-ember-500/10 text-ember-400"
-                    : "border-stone-700 bg-stone-800/50 text-stone-400 hover:border-stone-600"
-                }`}
-              >
-                {mark}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Hair Style */}
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-stone-500">
-            Hair Style
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {opts.hairStyles.map((style) => (
-              <button
-                key={style}
-                onClick={() => onUpdate("hairStyle", style)}
-                className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                  appearance.hairStyle === style
-                    ? "border-ember-500 bg-ember-500/10 text-ember-400"
-                    : "border-stone-700 bg-stone-800/50 text-stone-400 hover:border-stone-600"
-                }`}
-              >
-                {style}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Unique Feature */}
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-stone-500">
-            {opts.uniqueFeature}
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {opts.uniqueFeatureOptions.map((opt) => (
-              <button
-                key={opt}
-                onClick={() => onUpdate("uniqueFeature", opt)}
-                className={`rounded-lg border px-3 py-2 text-xs font-medium transition-all ${
-                  appearance.uniqueFeature === opt
-                    ? "border-ember-500 bg-ember-500/10 text-ember-400"
-                    : "border-stone-700 bg-stone-800/50 text-stone-400 hover:border-stone-600"
-                }`}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        </div>
+        <OptionGrid label="Eye Color" options={opts.eyeColors} selected={appearance.eyeColor} field="eyeColor" />
+        <OptionGrid label="Skin Tone" options={opts.skinTones} selected={appearance.skinTone} field="skinTone" />
+        <OptionGrid label="Markings" options={opts.markings} selected={appearance.marking} field="marking" />
+        <OptionGrid label="Hair Style" options={opts.hairStyles} selected={appearance.hairStyle} field="hairStyle" />
+        <OptionGrid label={opts.uniqueFeature} options={opts.uniqueFeatureOptions} selected={appearance.uniqueFeature} field="uniqueFeature" />
       </div>
     </div>
   );
@@ -543,14 +501,11 @@ function NameStep({
 }) {
   const race = getRaceById(selectedRace);
   const memoryData = DRAGON_MEMORIES.find((m) => m.id === selectedMemory);
-  const weaponData = STARTER_WEAPONS.find(
-    (w) => w.metadata?.weaponClass === selectedWeapon
-  );
+  const weaponData = STARTER_WEAPONS.find((w) => w.metadata?.weaponClass === selectedWeapon);
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      {/* Center: 3D Viewer */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-h-[300px]">
         <CharacterViewer
           raceId={selectedRace}
           memory={selectedMemory || undefined}
@@ -559,23 +514,29 @@ function NameStep({
           autoRotate
         />
         {name && (
-          <div className="absolute left-1/2 top-8 -translate-x-1/2">
-            <div className="rounded-lg border border-ember-500/30 bg-stone-950/80 px-6 py-2 backdrop-blur-sm">
-              <p className="text-center text-lg font-black text-ember-400">{name}</p>
-              <p className="text-center text-xs text-stone-400">
-                {race?.name} • {memoryData?.name} Memory
+          <div className="absolute left-1/2 top-6 -translate-x-1/2 animate-fade-in">
+            <div className="rounded-lg border border-ember-500/20 bg-stone-950/80 px-8 py-3 backdrop-blur-md">
+              <p className="text-center font-display text-xl font-bold tracking-wider text-ember-400 text-shadow-ember">
+                {name}
+              </p>
+              <p className="mt-0.5 text-center text-[10px] uppercase tracking-[0.3em] text-stone-500">
+                {race?.name} &bull; {memoryData?.name}
               </p>
             </div>
           </div>
         )}
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-transparent p-8 pt-20">
+          <p className="mx-auto max-w-lg text-center text-[13px] italic leading-relaxed text-stone-500">
+            &ldquo;You awaken on the Old Road with nothing but fragmented memories and a single weapon. The dragon blood stirs within you — not as a curse, but as a question. What will you become?&rdquo;
+          </p>
+        </div>
       </div>
 
-      {/* Right: Name and summary */}
-      <div className="flex flex-col gap-5 overflow-y-auto border-l border-stone-800/50 p-6 lg:w-[420px]">
+      <div className="wizard-panel flex flex-col gap-5 border-l p-6 lg:w-[400px]">
         <div>
-          <h2 className="text-xl font-black text-stone-100">Name Your Character</h2>
-          <p className="text-sm text-stone-400">
-            Choose a name that will be known throughout Ironvale and beyond.
+          <h2 className="font-display text-xl tracking-wide text-stone-100">Your Name</h2>
+          <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
+            A name is the first thing your enemies will learn, and the last they will forget.
           </p>
         </div>
 
@@ -584,61 +545,57 @@ function NameStep({
             type="text"
             value={name}
             onChange={(e) => onNameChange(e.target.value)}
-            placeholder="Enter your name (2-24 characters)"
+            placeholder="Speak your name..."
             maxLength={24}
-            className="w-full rounded-xl border border-stone-700 bg-stone-800/80 px-5 py-4 text-lg font-bold text-stone-100 placeholder-stone-600 transition-all focus:border-ember-500 focus:outline-none focus:ring-2 focus:ring-ember-500/20"
+            className="w-full rounded-xl border border-stone-700/50 bg-stone-900/50 px-5 py-4 font-display text-lg tracking-wide text-stone-100 placeholder-stone-700 transition-all focus:border-ember-500/50 focus:outline-none focus:ring-2 focus:ring-ember-500/15 focus:shadow-lg focus:shadow-ember-500/5"
           />
-          <p className="mt-2 text-xs text-stone-600">
-            {name.length}/24 characters • Letters, numbers, spaces, hyphens, apostrophes
+          <p className="mt-2 text-[10px] tabular-nums text-stone-700">
+            {name.length}/24
           </p>
         </div>
 
-        {/* Summary */}
-        <div className="rounded-xl border border-stone-800 bg-stone-900/50 p-5">
-          <h3 className="mb-4 text-xs font-bold uppercase tracking-widest text-stone-500">
-            Character Summary
+        {/* Final Summary */}
+        <div className="rounded-xl border border-stone-800/30 bg-stone-900/20 p-5">
+          <h3 className="mb-4 font-display text-[10px] font-bold uppercase tracking-[0.25em] text-stone-500">
+            Character Sheet
           </h3>
 
           <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm text-stone-400">Lineage</span>
-              <span className="text-sm font-bold text-stone-200">{race?.name}</span>
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-stone-500">Lineage</span>
+              <span className="font-display text-[13px] font-bold text-stone-200">{race?.name}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-stone-400">Dragon Memory</span>
-              <span className="text-sm font-bold text-stone-200">{memoryData?.name} ({memoryData?.element})</span>
+            <div className="h-px bg-stone-800/50" />
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-stone-500">Dragon Memory</span>
+              <span className="font-display text-[13px] font-bold text-stone-200">
+                {memoryData?.name} <span className="text-stone-600">({memoryData?.element})</span>
+              </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-stone-400">Weapon</span>
-              <span className="text-sm font-bold text-stone-200">{weaponData?.name}</span>
+            <div className="h-px bg-stone-800/50" />
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-stone-500">Weapon</span>
+              <span className="font-display text-[13px] font-bold text-stone-200">{weaponData?.name}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-sm text-stone-400">Starting Zone</span>
-              <span className="text-sm font-bold text-stone-200">Ironvale</span>
+            <div className="h-px bg-stone-800/50" />
+            <div className="flex items-center justify-between">
+              <span className="text-[12px] text-stone-500">Starting Zone</span>
+              <span className="font-display text-[13px] font-bold text-stone-200">Ironvale</span>
             </div>
           </div>
 
           {race && (
-            <div className="mt-4 border-t border-stone-800 pt-4">
-              <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-stone-500">
-                Base Stats
-              </h4>
-              <div className="grid grid-cols-5 gap-2 text-center">
+            <div className="mt-5 pt-4 border-t border-stone-800/30">
+              <div className="grid grid-cols-5 gap-1.5">
                 {Object.entries(race.baseStats).map(([key, val]) => (
-                  <div key={key} className="rounded-md bg-stone-800/50 p-2">
-                    <p className="text-[10px] uppercase text-stone-500">{key.slice(0, 3)}</p>
-                    <p className="text-sm font-bold text-stone-200">{val}</p>
+                  <div key={key} className="rounded-lg bg-stone-800/30 p-2 text-center">
+                    <p className="text-[8px] font-bold uppercase tracking-wider text-stone-600">{key.slice(0, 3)}</p>
+                    <p className="text-[14px] font-black tabular-nums text-stone-200">{val}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
-        </div>
-
-        <div className="rounded-lg border border-stone-800/50 bg-stone-900/30 p-4">
-          <p className="text-center text-xs italic text-stone-500">
-            &quot;You awaken on the Old Road with nothing but fragmented memories and a single weapon. The dragon blood stirs within you — not as a curse, but as a question. What will you become?&quot;
-          </p>
         </div>
       </div>
     </div>
@@ -666,29 +623,20 @@ function CharacterCreationWizard() {
 
   const canProceed = useCallback(() => {
     switch (step) {
-      case "race":
-        return !!selectedRace;
-      case "memory":
-        return !!selectedMemory;
-      case "weapon":
-        return !!selectedWeapon;
-      case "appearance":
-        return !!appearance.eyeColor && !!appearance.skinTone;
-      case "name":
-        return name.trim().length >= 2 && name.trim().length <= 24;
+      case "race": return !!selectedRace;
+      case "memory": return !!selectedMemory;
+      case "weapon": return !!selectedWeapon;
+      case "appearance": return !!appearance.eyeColor && !!appearance.skinTone;
+      case "name": return name.trim().length >= 2 && name.trim().length <= 24;
     }
   }, [step, selectedRace, selectedMemory, selectedWeapon, appearance, name]);
 
   const handleNext = () => {
-    if (currentStepIdx < STEPS.length - 1) {
-      setStep(STEPS[currentStepIdx + 1]);
-    }
+    if (currentStepIdx < STEPS.length - 1) setStep(STEPS[currentStepIdx + 1]);
   };
 
   const handleBack = () => {
-    if (currentStepIdx > 0) {
-      setStep(STEPS[currentStepIdx - 1]);
-    }
+    if (currentStepIdx > 0) setStep(STEPS[currentStepIdx - 1]);
   };
 
   const handleRaceSelect = (id: RaceId) => {
@@ -705,18 +653,12 @@ function CharacterCreationWizard() {
     }
   };
 
-  const handleAppearanceUpdate = (field: string, value: string) => {
-    setAppearance((prev) => ({ ...prev, [field]: value }));
-  };
-
   const handleCreate = async () => {
     setError(null);
-
     if (!selectedRace || !selectedMemory || !selectedWeapon || !name.trim()) {
-      setError("Please complete all steps before creating your character.");
+      setError("Complete all steps before creating your character.");
       return;
     }
-
     if (name.trim().length < 2 || name.trim().length > 24) {
       setError("Name must be between 2 and 24 characters.");
       return;
@@ -724,23 +666,11 @@ function CharacterCreationWizard() {
 
     setLoading(true);
     const supabase = getSupabaseClient();
-
-    if (!supabase) {
-      setError("Unable to connect. Please try again.");
-      setLoading(false);
-      return;
-    }
+    if (!supabase) { setError("Unable to connect."); setLoading(false); return; }
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        setError("You must be logged in to create a character.");
-        setLoading(false);
-        return;
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setError("You must be logged in."); setLoading(false); return; }
 
       const { error: insertError } = await supabase.from("characters").insert({
         user_id: user.id,
@@ -756,131 +686,102 @@ function CharacterCreationWizard() {
           uniqueFeature: appearance.uniqueFeature,
         },
         zone_id: "ironvale_town",
-        position_x: 0,
-        position_y: 0,
-        position_z: 0,
+        position_x: 0, position_y: 0, position_z: 0,
       });
 
       if (insertError) {
-        if (insertError.code === "23505") {
-          setError("A character with that name already exists. Choose another.");
-        } else {
-          setError(insertError.message);
-        }
+        setError(insertError.code === "23505" ? "That name is already taken." : insertError.message);
         setLoading(false);
         return;
       }
-
       router.push("/characters");
     } catch {
-      setError("An unexpected error occurred. Please try again.");
+      setError("Something went wrong. Try again.");
       setLoading(false);
     }
   };
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-stone-950">
-      {/* Top bar */}
-      <div className="flex items-center justify-between border-b border-stone-800/50 bg-stone-950/90 px-6 py-3 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push("/characters")}
-            className="text-xs text-stone-500 transition-colors hover:text-stone-300"
-          >
-            ← Back
-          </button>
-          <div className="h-4 w-px bg-stone-800" />
-          <h1 className="text-sm font-bold text-stone-300">Character Creation</h1>
+      {/* Top bar — minimal, cinematic */}
+      <div className="relative z-10 flex items-center justify-between border-b border-stone-800/30 bg-stone-950/80 px-5 py-3 backdrop-blur-xl">
+        <button
+          onClick={() => router.push("/characters")}
+          className="flex items-center gap-2 text-[11px] text-stone-600 transition-colors hover:text-stone-300"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Exit
+        </button>
+
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+          <p className="font-display text-[11px] font-bold uppercase tracking-[0.3em] text-stone-400">
+            {STEP_TITLES[step]}
+          </p>
         </div>
-        <StepIndicator currentStep={step} steps={STEPS} />
-        <div className="text-xs text-stone-600">
-          {STEP_LABELS[step]}
-        </div>
+
+        <StepNav currentStep={step} steps={STEPS} />
       </div>
 
-      {/* Error banner */}
+      {/* Lore subtitle */}
+      <div className="border-b border-stone-800/20 bg-stone-950/60 px-6 py-2">
+        <p className="text-center text-[11px] italic text-stone-600 animate-fade-in" key={step}>
+          {STEP_LORE[step]}
+        </p>
+      </div>
+
+      {/* Error */}
       {error && (
-        <div className="border-b border-red-500/30 bg-red-500/10 px-6 py-2">
-          <p className="text-center text-sm text-red-400">{error}</p>
+        <div className="border-b border-red-500/20 bg-red-500/5 px-6 py-2">
+          <p className="text-center text-[12px] text-red-400">{error}</p>
         </div>
       )}
 
-      {/* Main content */}
+      {/* Content */}
       <div className="flex-1 overflow-hidden">
-        {step === "race" && (
-          <RaceSelectionStep selectedRace={selectedRace} onSelect={handleRaceSelect} />
-        )}
-        {step === "memory" && selectedRace && (
-          <MemorySelectionStep
-            selectedMemory={selectedMemory}
-            selectedRace={selectedRace}
-            onSelect={setSelectedMemory}
-          />
-        )}
-        {step === "weapon" && selectedRace && (
-          <WeaponSelectionStep
-            selectedWeapon={selectedWeapon}
-            selectedRace={selectedRace}
-            selectedMemory={selectedMemory}
-            onSelect={setSelectedWeapon}
-          />
-        )}
-        {step === "appearance" && selectedRace && (
-          <AppearanceStep
-            selectedRace={selectedRace}
-            selectedMemory={selectedMemory}
-            appearance={appearance}
-            onUpdate={handleAppearanceUpdate}
-          />
-        )}
-        {step === "name" && selectedRace && (
-          <NameStep
-            name={name}
-            onNameChange={setName}
-            selectedRace={selectedRace}
-            selectedMemory={selectedMemory}
-            selectedWeapon={selectedWeapon}
-            appearance={appearance}
-          />
-        )}
+        {step === "race" && <RaceSelectionStep selectedRace={selectedRace} onSelect={handleRaceSelect} />}
+        {step === "memory" && selectedRace && <MemorySelectionStep selectedMemory={selectedMemory} selectedRace={selectedRace} onSelect={setSelectedMemory} />}
+        {step === "weapon" && selectedRace && <WeaponSelectionStep selectedWeapon={selectedWeapon} selectedRace={selectedRace} selectedMemory={selectedMemory} onSelect={setSelectedWeapon} />}
+        {step === "appearance" && selectedRace && <AppearanceStep selectedRace={selectedRace} selectedMemory={selectedMemory} appearance={appearance} onUpdate={(f, v) => setAppearance((p) => ({ ...p, [f]: v }))} />}
+        {step === "name" && selectedRace && <NameStep name={name} onNameChange={setName} selectedRace={selectedRace} selectedMemory={selectedMemory} selectedWeapon={selectedWeapon} appearance={appearance} />}
       </div>
 
-      {/* Bottom nav */}
-      <div className="flex items-center justify-between border-t border-stone-800/50 bg-stone-950/90 px-6 py-4 backdrop-blur-sm">
+      {/* Bottom nav — cinematic */}
+      <div className="relative z-10 flex items-center justify-between border-t border-stone-800/30 bg-stone-950/80 px-6 py-4 backdrop-blur-xl">
         <button
           onClick={handleBack}
           disabled={currentStepIdx === 0}
-          className="rounded-lg border border-stone-700 bg-stone-800 px-5 py-2.5 text-sm font-medium text-stone-300 transition-all hover:border-stone-600 hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-30"
+          className="rounded-lg border border-stone-800/50 bg-stone-900/30 px-5 py-2.5 text-[12px] font-medium text-stone-400 transition-all hover:border-stone-700 hover:bg-stone-800/50 hover:text-stone-200 disabled:pointer-events-none disabled:opacity-20"
         >
-          ← Previous
+          Back
         </button>
 
-        <div className="text-xs text-stone-600">
-          Step {currentStepIdx + 1} of {STEPS.length}
-        </div>
+        <p className="text-[10px] tabular-nums text-stone-700">
+          {currentStepIdx + 1} / {STEPS.length}
+        </p>
 
         {step === "name" ? (
           <button
             onClick={handleCreate}
             disabled={!canProceed() || loading}
-            className="rounded-lg bg-gradient-to-r from-ember-600 to-orange-500 px-8 py-2.5 text-sm font-bold text-white shadow-lg shadow-ember-500/20 transition-all hover:from-ember-500 hover:to-orange-400 hover:shadow-ember-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-ember-600 to-orange-500 px-8 py-2.5 text-[13px] font-bold text-white shadow-lg shadow-ember-500/20 transition-all hover:shadow-xl hover:shadow-ember-500/30 disabled:pointer-events-none disabled:opacity-40"
           >
-            {loading ? (
-              <span className="flex items-center gap-2">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Creating...
-              </span>
-            ) : (
-              "⚔️ Create Character"
+            <span className="relative z-10 font-display tracking-wider">
+              {loading ? "Creating..." : "Begin Your Journey"}
+            </span>
+            {!loading && (
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
             )}
           </button>
         ) : (
           <button
             onClick={handleNext}
             disabled={!canProceed()}
-            className="rounded-lg bg-gradient-to-r from-ember-600 to-orange-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-ember-500/20 transition-all hover:from-ember-500 hover:to-orange-400 hover:shadow-ember-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            className="group relative overflow-hidden rounded-lg bg-gradient-to-r from-ember-600 to-orange-500 px-7 py-2.5 text-[13px] font-bold text-white shadow-lg shadow-ember-500/20 transition-all hover:shadow-xl hover:shadow-ember-500/30 disabled:pointer-events-none disabled:opacity-40"
           >
-            Next →
+            <span className="relative z-10 font-display tracking-wider">Continue</span>
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
           </button>
         )}
       </div>
