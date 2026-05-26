@@ -6,6 +6,7 @@
 export interface Minimap {
   updatePlayerPosition: (x: number, z: number, yaw: number) => void;
   updateRemotePlayers: (players: Array<{ x: number; z: number }>) => void;
+  onClick: (handler: () => void) => void;
   dispose: () => void;
 }
 
@@ -198,7 +199,8 @@ export function createMinimap(): Minimap {
     position: "absolute",
     bottom: "16px",
     right: "16px",
-    pointerEvents: "none",
+    pointerEvents: "auto",
+    cursor: "pointer",
     zIndex: "10",
     display: "flex",
     flexDirection: "column",
@@ -267,6 +269,10 @@ export function createMinimap(): Minimap {
   // Initial draw (no player yet, but terrain is visible immediately)
   redraw();
 
+  // ── Click handler ──────────────────────────────────────────────
+  let clickHandler: (() => void) | null = null;
+  container.addEventListener("click", () => { if (clickHandler) clickHandler(); });
+
   // ── Public interface ──────────────────────────────────────────
   return {
     updatePlayerPosition(x: number, z: number, yaw: number): void {
@@ -278,8 +284,10 @@ export function createMinimap(): Minimap {
 
     updateRemotePlayers(players: Array<{ x: number; z: number }>): void {
       remotes = players;
-      // No standalone redraw — next updatePlayerPosition will pick it up.
-      // If you need immediate display, call redraw() here too.
+    },
+
+    onClick(handler: () => void): void {
+      clickHandler = handler;
     },
 
     dispose(): void {

@@ -24,6 +24,7 @@ import { createMainMenu, type MainMenu } from '../ui/createMainMenu';
 import { createPauseMenu, type PauseMenu } from '../ui/createPauseMenu';
 import { createSettingsPanel, type SettingsPanel } from '../ui/createSettingsPanel';
 import { createLoadingScreen, type LoadingScreen } from '../ui/createLoadingScreen';
+import { createWorldMap, type WorldMap } from '../ui/createWorldMap';
 import type { AtmosphereEngine } from '@dracor/atmosphere';
 import type { BabylonAtmosphereRenderer } from '../atmosphere/BabylonAtmosphereRenderer';
 
@@ -49,6 +50,7 @@ export class GameApp {
   private pauseMenu!: PauseMenu;
   private settingsPanel!: SettingsPanel;
   private loadingScreen!: LoadingScreen;
+  private worldMap!: WorldMap;
   private playerName: string;
   private characterId: string | null;
   private userId: string | null;
@@ -143,6 +145,8 @@ export class GameApp {
     this.devPanel = createDevPanel(this.engine, this.scene, this.quality);
     this.devPanel.setQualityTier(tier);
     this.minimap = createMinimap();
+    this.worldMap = createWorldMap();
+    this.minimap.onClick(() => this.worldMap.toggle());
     this.chatController = new ChatController();
 
     this.multiplayerClient = new MultiplayerClient();
@@ -253,6 +257,8 @@ export class GameApp {
     const yaw = this.playerController.getYaw();
     this.minimap.updatePlayerPosition(pos.x, pos.z, yaw);
     this.minimap.updateRemotePlayers(this.multiplayerClient.getRemotePlayerPositions());
+    this.worldMap.updatePlayerPosition(pos.x, pos.z, yaw);
+    this.worldMap.updateRemotePlayers(this.multiplayerClient.getRemotePlayerPositions());
   }
 
   private async connectToServer(): Promise<void> {
@@ -349,6 +355,7 @@ export class GameApp {
     this.hud.dispose();
     this.devPanel.dispose();
     this.minimap.dispose();
+    this.worldMap.dispose();
     this.mainMenu.dispose();
     this.pauseMenu.dispose();
     this.settingsPanel.dispose();
