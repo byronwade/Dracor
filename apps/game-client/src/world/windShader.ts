@@ -18,7 +18,6 @@ attribute vec3 normal;
 attribute vec2 uv;
 
 uniform mat4 viewProjection;
-uniform mat4 world;
 uniform float windTime;
 uniform float windStrength;
 uniform vec2 windDirection;
@@ -139,7 +138,7 @@ export function createWindMaterial(
   const windMat = new ShaderMaterial(`wind_${name}`, scene, 'foliageWind', {
     attributes: ['position', 'normal', 'uv'],
     uniforms: [
-      'viewProjection', 'world',
+      'viewProjection',
       'windTime', 'windStrength', 'windDirection', 'windSpeed',
       'baseColor', 'roughness', 'metallic',
       'lightDirection', 'lightColor', 'ambientColor',
