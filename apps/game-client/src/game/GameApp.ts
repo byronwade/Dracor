@@ -87,6 +87,7 @@ export class GameApp {
     this.scene = this.sceneResult.scene;
 
     this.inputController = new InputController();
+    this.inputController.attachCanvas(this.canvas);
 
     const spawn = { x: 0, y: 0, z: 10 };
     this.playerController = new PlayerController(

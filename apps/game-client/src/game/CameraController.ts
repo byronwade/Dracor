@@ -117,22 +117,12 @@ export class CameraController {
   }
 
   update(mouse: MouseState, dt: number): void {
-    if (mouse.rightDown) {
+    if (mouse.locked && (mouse.deltaX !== 0 || mouse.deltaY !== 0)) {
       this.targetAlpha -= mouse.deltaX * ORBIT_SENSITIVITY;
       this.targetBeta -= mouse.deltaY * ORBIT_SENSITIVITY;
       this.targetBeta = Math.max(MIN_BETA, Math.min(MAX_BETA, this.targetBeta));
-
-      this.inertiaAlpha = -mouse.deltaX * ORBIT_SENSITIVITY;
-      this.inertiaBeta = -mouse.deltaY * ORBIT_SENSITIVITY;
       this.timeSinceOrbit = 0;
     } else {
-      if (Math.abs(this.inertiaAlpha) > INERTIA_THRESHOLD || Math.abs(this.inertiaBeta) > INERTIA_THRESHOLD) {
-        this.targetAlpha += this.inertiaAlpha;
-        this.targetBeta += this.inertiaBeta;
-        this.targetBeta = Math.max(MIN_BETA, Math.min(MAX_BETA, this.targetBeta));
-        this.inertiaAlpha *= INERTIA_DECAY;
-        this.inertiaBeta *= INERTIA_DECAY;
-      }
       this.timeSinceOrbit += dt;
     }
 
@@ -147,7 +137,7 @@ export class CameraController {
       this.resetBehindPlayer();
     }
 
-    if (this.playerMoving && !mouse.rightDown && this.timeSinceOrbit > AUTO_FOLLOW_DELAY) {
+    if (this.playerMoving && this.timeSinceOrbit > AUTO_FOLLOW_DELAY) {
       const behindAlpha = this.playerYaw + Math.PI;
       const followT = Math.min(1, AUTO_FOLLOW_SPEED * dt);
       this.targetAlpha = lerpAngle(this.targetAlpha, behindAlpha, followT);
