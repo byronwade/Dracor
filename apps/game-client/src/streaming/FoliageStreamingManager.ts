@@ -130,7 +130,7 @@ export class FoliageStreamingManager {
       const z = group.area.centerZ + Math.sin(angle) * dist;
       const scale = group.minScale + rng() * (group.maxScale - group.minScale);
       const y = this.getHeightAt(x, z);
-      tmpPos.set(x, y + scale * 0.5, z);
+      tmpPos.set(x, y + scale * 0.2, z);
       Quaternion.FromEulerAnglesToRef((rng() - 0.5) * 0.3, rng() * Math.PI * 2, (rng() - 0.5) * 0.3, tmpRot);
       tmpScale.set(scale * (0.7 + rng() * 0.6), scale * (0.5 + rng() * 0.5), scale * (0.7 + rng() * 0.6));
       Matrix.ComposeToRef(tmpScale, tmpRot, tmpPos, tmpMat);
@@ -151,6 +151,22 @@ export class FoliageStreamingManager {
 
       const mesh = await loadModel(group.modelId, this.scene, config);
       if (mesh) {
+        if (mesh.material) {
+          const mat = mesh.material as any;
+          if (mat.transparencyMode !== undefined) {
+            mat.transparencyMode = 1;
+          }
+          if (mat.alphaMode !== undefined) {
+            mat.alphaMode = 1;
+          }
+          if (mat.backFaceCulling !== undefined) {
+            mat.backFaceCulling = false;
+          }
+          if (mat.forceDepthWrite !== undefined) {
+            mat.forceDepthWrite = true;
+          }
+        }
+        mesh.hasVertexAlpha = false;
         mesh.isVisible = false;
         mesh.setEnabled(false);
         return mesh;
