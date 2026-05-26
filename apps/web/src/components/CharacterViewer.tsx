@@ -138,7 +138,7 @@ export function CharacterViewer({
     const targetY = config.height * 0.55;
     const camera = new B.ArcRotateCamera(
       "camera",
-      0,
+      Math.PI / 2,
       Math.PI / 2.4,
       4.0,
       new B.Vector3(0, targetY, 0),
@@ -159,7 +159,7 @@ export function CharacterViewer({
     let idleTime = 0;
     let userInteracting = false;
     let interactTimeout: ReturnType<typeof setTimeout> | null = null;
-    const baseAlpha = 0;
+    const baseAlpha = Math.PI / 2;
 
     const onPointerDown = () => {
       userInteracting = true;
@@ -245,7 +245,6 @@ export function CharacterViewer({
 function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId], raceId: RaceId, weapon?: string, memory?: string) {
   const S = config.height / 1.8; // scale factor
   const root = new B.TransformNode("root", scene);
-  root.rotation.y = Math.PI;
   const seg = 24; // high tessellation for smooth surfaces
 
   // --- Materials ---
