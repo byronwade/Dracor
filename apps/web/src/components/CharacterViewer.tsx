@@ -245,6 +245,7 @@ export function CharacterViewer({
 function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId], raceId: RaceId, weapon?: string, memory?: string) {
   const S = config.height / 1.8; // scale factor
   const root = new B.TransformNode("root", scene);
+  root.rotation.y = Math.PI;
   const seg = 24; // high tessellation for smooth surfaces
 
   // --- Materials ---
