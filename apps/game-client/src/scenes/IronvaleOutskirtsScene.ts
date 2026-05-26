@@ -584,8 +584,8 @@ export async function buildIronvaleOutskirtsScene(
   quality: QualitySettings
 ): Promise<IronvaleSceneResult> {
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0.45, 0.52, 0.62, 1.0);
-  scene.ambientColor = new Color3(0.15, 0.15, 0.18);
+  scene.clearColor = new Color4(0.45, 0.55, 0.70, 1.0);
+  scene.ambientColor = new Color3(0.2, 0.2, 0.25);
 
   const atmosphereEngine = createAtmosphereEngine({
     initialTime: 0.38,

@@ -154,6 +154,7 @@ export class BabylonAtmosphereRenderer {
     this.skyDome.infiniteDistance = true;
     this.skyDome.applyFog = false;
     this.skyDome.renderingGroupId = 0;
+    this.skyDome.alwaysSelectAsActiveMesh = true;
 
     this.skyMaterial = new ShaderMaterial(
       'atmosphereSkyMat',
@@ -190,10 +191,17 @@ export class BabylonAtmosphereRenderer {
     this.ambientLight = existingAmbient
       ?? new HemisphericLight('atmosphereAmbient', new Vector3(0, 1, 0), scene);
     this.ambientLight.specular = Color3.Black();
+    this.ambientLight.intensity = 0.6;
+    this.ambientLight.diffuse = new Color3(0.6, 0.65, 0.75);
+    this.ambientLight.groundColor = new Color3(0.15, 0.12, 0.10);
 
     const existingSun = scene.getLightByName('atmosphereSun') as DirectionalLight | null;
     this.sunLight = existingSun
       ?? new DirectionalLight('atmosphereSun', new Vector3(-0.5, -1, -0.5).normalize(), scene);
+    this.sunLight.intensity = 1.5;
+    this.sunLight.diffuse = new Color3(1.0, 0.95, 0.85);
+
+    console.log('[Atmosphere] Renderer initialized — sky dome, ambient light, sun light');
   }
 
   /**
@@ -222,13 +230,12 @@ export class BabylonAtmosphereRenderer {
     this.skyMaterial.setFloat('starVisibility', sky.starVisibility);
     this.skyMaterial.setFloat('exposure', sky.exposure);
 
-    // --- Distance fog ---
+    // --- Distance fog (linear for predictable distance control) ---
     const distFog = fog.distance;
-    this.scene.fogMode = Scene.FOGMODE_EXP2;
-    this.scene.fogDensity = distFog.density;
-    this.scene.fogColor = toColor3(distFog.color);
+    this.scene.fogMode = Scene.FOGMODE_LINEAR;
     this.scene.fogStart = distFog.start;
     this.scene.fogEnd = distFog.end;
+    this.scene.fogColor = toColor3(sky.horizonColor);
 
     // --- Ambient (hemispheric) light ---
     this.ambientLight.diffuse = toColor3(ambientColor);

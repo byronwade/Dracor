@@ -21,16 +21,16 @@ interface LoadedChunk {
 const WORLD_SEED = new WorldSeed('dracor-world-001');
 const DYNAMIC_CHUNK_SIZE = 100;
 
-const COLOR_DEEP_WATER = new Color4(0.02, 0.05, 0.12, 1);
-const COLOR_SHALLOW_WATER = new Color4(0.05, 0.12, 0.18, 1);
-const COLOR_SAND = new Color4(0.55, 0.48, 0.35, 1);
-const COLOR_GRASS = new Color4(0.12, 0.22, 0.08, 1);
-const COLOR_DARK_GRASS = new Color4(0.08, 0.16, 0.05, 1);
-const COLOR_FOREST_FLOOR = new Color4(0.1, 0.12, 0.06, 1);
-const COLOR_ROCK = new Color4(0.25, 0.24, 0.22, 1);
-const COLOR_DARK_ROCK = new Color4(0.15, 0.14, 0.13, 1);
-const COLOR_SNOW = new Color4(0.75, 0.78, 0.82, 1);
-const COLOR_DIRT = new Color4(0.18, 0.14, 0.09, 1);
+const COLOR_DEEP_WATER = new Color4(0.05, 0.12, 0.25, 1);
+const COLOR_SHALLOW_WATER = new Color4(0.10, 0.25, 0.40, 1);
+const COLOR_SAND = new Color4(0.76, 0.70, 0.55, 1);
+const COLOR_GRASS = new Color4(0.30, 0.55, 0.20, 1);
+const COLOR_DARK_GRASS = new Color4(0.20, 0.40, 0.12, 1);
+const COLOR_FOREST_FLOOR = new Color4(0.25, 0.30, 0.15, 1);
+const COLOR_ROCK = new Color4(0.50, 0.48, 0.45, 1);
+const COLOR_DARK_ROCK = new Color4(0.35, 0.33, 0.30, 1);
+const COLOR_SNOW = new Color4(0.90, 0.92, 0.95, 1);
+const COLOR_DIRT = new Color4(0.45, 0.35, 0.22, 1);
 
 function lerpColor(a: Color4, b: Color4, t: number): Color4 {
   const ct = Math.max(0, Math.min(1, t));
@@ -221,23 +221,31 @@ export class ChunkedTerrainManager {
     const needed = this.getChunksInRadius(playerPosition.x, playerPosition.z, loadDist);
     const neededKeys = new Set(needed.map(c => `${c.gridX}_${c.gridZ}`));
 
+    const toUnload: Array<{ gridX: number; gridZ: number }> = [];
     for (const [key, chunk] of this.loadedChunks) {
       if (!neededKeys.has(key)) {
         const center = this.getChunkWorldCenter(chunk.gridX, chunk.gridZ);
         const dist = Math.sqrt((playerPosition.x - center.x) ** 2 + (playerPosition.z - center.z) ** 2);
         if (dist > unloadDist) {
-          this.unloadChunk(chunk.gridX, chunk.gridZ);
+          toUnload.push({ gridX: chunk.gridX, gridZ: chunk.gridZ });
         }
       }
     }
+    for (const c of toUnload) this.unloadChunk(c.gridX, c.gridZ);
 
+    let loaded = 0;
     for (const coord of needed) {
       const key = `${coord.gridX}_${coord.gridZ}`;
       if (!this.loadedChunks.has(key)) {
         const center = this.getChunkWorldCenter(coord.gridX, coord.gridZ);
         const dist = Math.sqrt((playerPosition.x - center.x) ** 2 + (playerPosition.z - center.z) ** 2);
         this.loadChunk(coord.gridX, coord.gridZ, dist);
+        loaded++;
       }
+    }
+
+    if (loaded > 0) {
+      console.log(`[Terrain] Loaded ${loaded} chunks (total: ${this.loadedChunks.size}, needed: ${needed.length})`);
     }
   }
 
