@@ -21,28 +21,53 @@ interface QueuedInput {
   input: ClientInputMessage;
 }
 
+interface ChatRateState {
+  timestamps: number[];
+}
+
+const MAX_CHAT_PER_WINDOW = 5;
+const CHAT_WINDOW_MS = 10_000;
+const MAX_NAME_LENGTH = 24;
+const MIN_NAME_LENGTH = 2;
+const NAME_PATTERN = /^[a-zA-Z0-9_ \-']+$/;
+
+function sanitizeName(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  let name = raw.trim().slice(0, MAX_NAME_LENGTH);
+  name = name.replace(/[\x00-\x1f\x7f]/g, "");
+  if (!NAME_PATTERN.test(name)) {
+    name = name.replace(/[^a-zA-Z0-9_ \-']/g, "");
+  }
+  return name.length >= MIN_NAME_LENGTH ? name : "";
+}
+
+function sanitizeChatContent(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  let content = raw.trim();
+  content = content.replace(/[\x00-\x1f\x7f]/g, "");
+  if (content.length === 0 || content.length > 250) return null;
+  return content;
+}
+
 export class WorldRoom extends Room<WorldState> {
   maxClients = 50;
   private tickLoop: FixedTickLoop | null = null;
   private inputQueue: QueuedInput[] = [];
+  private chatRates = new Map<string, ChatRateState>();
+  private usedNames = new Set<string>();
 
   onCreate(_options: any): void {
     this.setState(new WorldState());
 
-    // Create and start the fixed-tick simulation loop
     this.tickLoop = createFixedTickLoop(TICK_RATE, (tick, dt) => {
       this.simulationTick(tick, dt);
     });
     this.tickLoop.start();
 
-    // -----------------------------------------------------------
-    // Message handler: "input" (new netcode-based input pipeline)
-    // -----------------------------------------------------------
     this.onMessage("input", (client: Client, data: any) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
-      // Cast and validate — the message from the client should match ClientInputMessage
       const input: ClientInputMessage = {
         type: "input",
         seq: data.seq,
@@ -54,88 +79,63 @@ export class WorldRoom extends Room<WorldState> {
         dt: data.dt,
       };
 
-      if (!validatePlayerInput(client.sessionId, input)) {
-        return;
-      }
+      if (!validatePlayerInput(client.sessionId, input)) return;
 
-      // Queue input for processing in the next tick
       this.inputQueue.push({ sessionId: client.sessionId, input });
     });
 
-    // -----------------------------------------------------------
-    // Message handler: "move" (LEGACY — backward compatibility)
-    // -----------------------------------------------------------
     this.onMessage("move", (client: Client, data: any) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
       const { x, y, z, rotationY } = data;
-
-      // Validate movement data
       if (typeof x !== "number" || !isFinite(x)) return;
       if (typeof y !== "number" || !isFinite(y)) return;
       if (typeof z !== "number" || !isFinite(z)) return;
 
-      // Clamp positions within bounds
       const clamped = clampToWorldBounds(x, y, z);
       player.x = clamped.x;
       player.y = clamped.y;
       player.z = clamped.z;
 
-      // Handle rotation if provided (legacy clients send rotationY)
       if (rotationY !== undefined) {
         if (typeof rotationY !== "number" || !isFinite(rotationY)) return;
         player.yaw = rotationY;
       }
 
       player.isMoving = true;
-
-      // Reset isMoving after a short delay
       this.clock.setTimeout(() => {
-        if (player) {
-          player.isMoving = false;
-        }
+        if (player) player.isMoving = false;
       }, 100);
     });
 
-    // -----------------------------------------------------------
-    // Message handler: "chat"
-    // -----------------------------------------------------------
     this.onMessage("chat", (client: Client, data: any) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
-      const { content } = data;
+      const content = sanitizeChatContent(data.content);
+      if (!content) return;
 
-      // Validate chat content
-      if (typeof content !== "string") return;
-      const trimmed = content.trim();
-      if (trimmed.length === 0) return;
-      if (trimmed.length > 250) return;
-
-      // Create chat message
-      const message = new ChatState();
-      message.id = `${client.sessionId}-${Date.now()}`;
-      message.senderId = client.sessionId;
-      message.senderName = player.name;
-      message.content = trimmed;
-      message.timestamp = Date.now();
-
-      this.state.messages.push(message);
-
-      // Keep only the last 50 messages
-      while (this.state.messages.length > 50) {
-        this.state.messages.shift();
+      if (!this.checkChatRate(client.sessionId)) {
+        logger.debug("Chat rate limited", { sessionId: client.sessionId });
+        return;
       }
+
+      this.addChatMessage(client.sessionId, player.name, content);
     });
 
     logger.info("WorldRoom created");
   }
 
   onJoin(client: Client, options: any): void {
+    let name = sanitizeName(options?.name);
+    if (!name) name = "Wanderer";
+
+    name = this.makeUniqueName(name);
+
     const player = new PlayerState();
     player.id = client.sessionId;
-    player.name = options?.name || "Wanderer";
+    player.name = name;
     player.x = 0;
     player.y = 0;
     player.z = 0;
@@ -148,21 +148,21 @@ export class WorldRoom extends Room<WorldState> {
     player.isMoving = false;
     player.lastInputSeq = 0;
 
-    if (options?.userId) {
-      player.userId = options.userId;
-    }
-    if (options?.characterId) {
-      player.characterId = options.characterId;
-    }
+    if (options?.userId) player.userId = String(options.userId).slice(0, 64);
+    if (options?.characterId) player.characterId = String(options.characterId).slice(0, 64);
 
     this.state.players.set(client.sessionId, player);
+    this.usedNames.add(name.toLowerCase());
+    this.chatRates.set(client.sessionId, { timestamps: [] });
 
-    // Register player for input validation tracking
     registerPlayer(client.sessionId);
+
+    this.addSystemMessage(`${name} entered Ironvale.`);
 
     logger.info("Player joined", {
       name: player.name,
       sessionId: client.sessionId,
+      playerCount: this.state.players.size,
     });
   }
 
@@ -170,7 +170,6 @@ export class WorldRoom extends Room<WorldState> {
     const player = this.state.players.get(client.sessionId);
     const name = player?.name || "Unknown";
 
-    // Enqueue a final position save if the player has a characterId
     if (player && player.characterId) {
       persistenceQueue.enqueue(
         player.characterId,
@@ -181,12 +180,18 @@ export class WorldRoom extends Room<WorldState> {
       );
     }
 
-    // Clean up input validation state
+    this.usedNames.delete(name.toLowerCase());
+    this.chatRates.delete(client.sessionId);
     unregisterPlayer(client.sessionId);
-
     this.state.players.delete(client.sessionId);
 
-    logger.info("Player left", { name, sessionId: client.sessionId });
+    this.addSystemMessage(`${name} left Ironvale.`);
+
+    logger.info("Player left", {
+      name,
+      sessionId: client.sessionId,
+      playerCount: this.state.players.size,
+    });
   }
 
   onDispose(): void {
@@ -194,15 +199,66 @@ export class WorldRoom extends Room<WorldState> {
       this.tickLoop.stop();
       this.tickLoop = null;
     }
+    this.chatRates.clear();
+    this.usedNames.clear();
     logger.info("WorldRoom disposed");
   }
 
-  /**
-   * Called every tick by the fixed tick loop.
-   * Processes all queued inputs and advances world time.
-   */
+  private makeUniqueName(desired: string): string {
+    const lower = desired.toLowerCase();
+    if (!this.usedNames.has(lower)) return desired;
+
+    for (let i = 2; i <= 99; i++) {
+      const candidate = `${desired}${i}`;
+      if (!this.usedNames.has(candidate.toLowerCase())) return candidate;
+    }
+    return `${desired}_${Date.now() % 10000}`;
+  }
+
+  private checkChatRate(sessionId: string): boolean {
+    const state = this.chatRates.get(sessionId);
+    if (!state) return false;
+
+    const now = Date.now();
+    state.timestamps = state.timestamps.filter((t) => t > now - CHAT_WINDOW_MS);
+
+    if (state.timestamps.length >= MAX_CHAT_PER_WINDOW) return false;
+
+    state.timestamps.push(now);
+    return true;
+  }
+
+  private addChatMessage(senderId: string, senderName: string, content: string): void {
+    const message = new ChatState();
+    message.id = `${senderId}-${Date.now()}`;
+    message.senderId = senderId;
+    message.senderName = senderName;
+    message.content = content;
+    message.timestamp = Date.now();
+
+    this.state.messages.push(message);
+
+    while (this.state.messages.length > 50) {
+      this.state.messages.shift();
+    }
+  }
+
+  private addSystemMessage(content: string): void {
+    const message = new ChatState();
+    message.id = `system-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    message.senderId = "__system__";
+    message.senderName = "";
+    message.content = content;
+    message.timestamp = Date.now();
+
+    this.state.messages.push(message);
+
+    while (this.state.messages.length > 50) {
+      this.state.messages.shift();
+    }
+  }
+
   private simulationTick(tick: number, _dt: number): void {
-    // Process all queued inputs
     const inputs = this.inputQueue;
     this.inputQueue = [];
 
@@ -220,16 +276,13 @@ export class WorldRoom extends Room<WorldState> {
           jump: queued.input.jump,
           dt: queued.input.dt,
         },
-        // No terrain yet — flat ground at y=0
         () => 0
       );
 
-      // Update the last processed input sequence number
       player.lastInputSeq = queued.input.seq;
     }
 
-    // Advance world time and tick
     this.state.tick = tick;
-    this.state.worldTime += 50; // 50ms per tick at 20Hz
+    this.state.worldTime += 50;
   }
 }

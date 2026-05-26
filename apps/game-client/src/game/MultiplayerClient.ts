@@ -23,20 +23,20 @@ interface RemotePlayer {
   targetRotY: number;
 }
 
-/**
- * Handles Colyseus connection, remote player management, and message passing.
- */
+export type ChatHandler = (sender: string, content: string, isSystem: boolean) => void;
+export type PlayerCountHandler = (count: number) => void;
+
 export class MultiplayerClient {
   private room: Room | null = null;
   private remotePlayers = new Map<string, RemotePlayer>();
   private connectionState: ConnectionState = 'disconnected';
   private inputSeq = 0;
+  private seenMessageIds = new Set<string>();
   private onConnectionChange: ((state: ConnectionState) => void) | null = null;
-  private onChatMessage: ((sender: string, content: string) => void) | null = null;
+  private onChatMessage: ChatHandler | null = null;
+  private onPlayerCountChange: PlayerCountHandler | null = null;
+  private assignedName: string | null = null;
 
-  /**
-   * Connect to the server.
-   */
   async connect(
     serverUrl: string,
     playerName: string,
@@ -61,13 +61,15 @@ export class MultiplayerClient {
     if (!room) return;
     const sessionId = room.sessionId;
 
-    // Player joins
     room.state.players.onAdd((player: Record<string, unknown>, key: string) => {
-      if (key === sessionId) return; // Skip self
+      if (key === sessionId) {
+        this.assignedName = (player.name as string) || null;
+        return;
+      }
+
       const name = (player.name as string) || 'Unknown';
       this.addRemotePlayer(key, name, scene);
 
-      // Listen for changes
       if (typeof (player as { onChange?: unknown }).onChange === 'function') {
         (player as { onChange: (cb: () => void) => void }).onChange(() => {
           const rp = this.remotePlayers.get(key);
@@ -79,46 +81,51 @@ export class MultiplayerClient {
           }
         });
       }
+
+      this.emitPlayerCount();
     });
 
-    // Player leaves
     room.state.players.onRemove((_player: unknown, key: string) => {
       this.removeRemotePlayer(key);
+      this.emitPlayerCount();
     });
 
-    // Chat from state
     if (room.state.messages) {
       (room.state.messages as { onAdd: (cb: (msg: Record<string, unknown>) => void) => void }).onAdd(
         (message: Record<string, unknown>) => {
-          const sender = (message.senderName as string) || 'Unknown';
+          const msgId = message.id as string;
+          if (!msgId) return;
+
+          if (this.seenMessageIds.has(msgId)) return;
+          this.seenMessageIds.add(msgId);
+
+          if (this.seenMessageIds.size > 200) {
+            const entries = Array.from(this.seenMessageIds);
+            for (let i = 0; i < 100; i++) {
+              this.seenMessageIds.delete(entries[i]);
+            }
+          }
+
+          const senderId = (message.senderId as string) || '';
+          const senderName = (message.senderName as string) || '';
           const content = (message.content as string) || '';
-          this.onChatMessage?.(sender, content);
+          const isSystem = senderId === '__system__';
+
+          if (senderId === sessionId) return;
+
+          this.onChatMessage?.(senderName, content, isSystem);
         }
       );
     }
 
-    // Chat broadcast messages
-    room.onMessage('chat', (message: Record<string, unknown>) => {
-      if (message.sessionId !== sessionId) {
-        const sender = (message.senderName as string) || 'Unknown';
-        const content = (message.content as string) || '';
-        this.onChatMessage?.(sender, content);
-      }
-    });
-
-    // Handle disconnect
     room.onLeave(() => {
       this.setConnectionState('disconnected');
-      // Clean up remote players
       for (const [key] of this.remotePlayers) {
         this.removeRemotePlayer(key);
       }
     });
   }
 
-  /**
-   * Send a client input message to the server (called at 20Hz).
-   */
   sendInput(moveX: number, moveZ: number, yaw: number, sprint: boolean, jump: boolean, dt: number): void {
     if (!this.room || this.connectionState !== 'connected') return;
 
@@ -141,9 +148,6 @@ export class MultiplayerClient {
     }
   }
 
-  /**
-   * Send a chat message.
-   */
   sendChat(content: string): void {
     if (!this.room || this.connectionState !== 'connected') return;
 
@@ -155,11 +159,8 @@ export class MultiplayerClient {
     }
   }
 
-  /**
-   * Interpolate remote player positions (call each frame).
-   */
   interpolateRemotePlayers(): void {
-    const lerpFactor = 0.1; // 10% per frame
+    const lerpFactor = 0.1;
 
     for (const [, rp] of this.remotePlayers) {
       const pos = rp.mesh.position;
@@ -170,14 +171,20 @@ export class MultiplayerClient {
     }
   }
 
-  /** Register callback for connection state changes */
   onConnectionStateChange(cb: (state: ConnectionState) => void): void {
     this.onConnectionChange = cb;
   }
 
-  /** Register callback for incoming chat messages */
-  onChat(cb: (sender: string, content: string) => void): void {
+  onChat(cb: ChatHandler): void {
     this.onChatMessage = cb;
+  }
+
+  onPlayerCount(cb: PlayerCountHandler): void {
+    this.onPlayerCountChange = cb;
+  }
+
+  getAssignedName(): string | null {
+    return this.assignedName;
   }
 
   getConnectionState(): ConnectionState {
@@ -188,6 +195,10 @@ export class MultiplayerClient {
     return this.room?.sessionId ?? null;
   }
 
+  getPlayerCount(): number {
+    return this.remotePlayers.size + 1;
+  }
+
   disconnect(): void {
     if (this.room) {
       try { this.room.leave(); } catch { /* ignore */ }
@@ -196,13 +207,15 @@ export class MultiplayerClient {
     for (const [key] of this.remotePlayers) {
       this.removeRemotePlayer(key);
     }
+    this.seenMessageIds.clear();
     this.setConnectionState('disconnected');
   }
 
-  // ─── Remote Player Mesh Management ───
+  private emitPlayerCount(): void {
+    this.onPlayerCountChange?.(this.getPlayerCount());
+  }
 
   private addRemotePlayer(id: string, name: string, scene: Scene): void {
-    // Body
     const body = MeshBuilder.CreateCylinder(
       `rp_${id}`,
       { diameter: 0.8, height: 1.6, tessellation: 16 },
@@ -216,7 +229,6 @@ export class MultiplayerClient {
     mat.emissiveColor = new Color3(0.02, 0.03, 0.08);
     body.material = mat;
 
-    // Head
     const head = MeshBuilder.CreateSphere(
       `rpHead_${id}`,
       { diameter: 0.6, segments: 12 },
@@ -226,7 +238,6 @@ export class MultiplayerClient {
     head.parent = body;
     head.material = mat;
 
-    // Name label
     const { label, texture } = this.createNameLabel(id, name, body, scene);
 
     this.remotePlayers.set(id, {
