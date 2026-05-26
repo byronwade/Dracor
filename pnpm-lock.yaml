@@ -42,6 +42,9 @@ importers:
       '@dracor/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@dracor/world-gen':
+        specifier: workspace:*
+        version: link:../../packages/world-gen
       typescript:
         specifier: ^5.5.0
         version: 5.9.3
@@ -276,6 +279,15 @@ importers:
         version: 5.9.3
 
   packages/world-data:
+    devDependencies:
+      '@dracor/config':
+        specifier: workspace:*
+        version: link:../config
+      typescript:
+        specifier: ^5.5.0
+        version: 5.9.3
+
+  packages/world-gen:
     devDependencies:
       '@dracor/config':
         specifier: workspace:*
