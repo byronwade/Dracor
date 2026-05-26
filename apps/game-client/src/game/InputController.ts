@@ -29,6 +29,7 @@ export class InputController {
   private _pointerLockSupported = false;
   private _pointerLockAttempts = 0;
   private _pointerLockSuccesses = 0;
+  private _lastLockAttempt = 0;
 
   private readonly _handleKeyDown: (e: KeyboardEvent) => void;
   private readonly _handleKeyUp: (e: KeyboardEvent) => void;
@@ -93,39 +94,28 @@ export class InputController {
       }
     };
 
-    this._handlePointerLockError = () => {
-      console.warn(`${LOG_PREFIX} Pointer lock ERROR — browser denied the request`);
-    };
+    this._handlePointerLockError = () => {};
 
     this._handleCanvasClick = (e: MouseEvent) => {
       if (e.button !== 0) return;
       if (this._locked) return;
+      if (!this._canvas) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (!document.hasFocus()) return;
 
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        console.log(`${LOG_PREFIX} Click on text input — skipping lock`);
-        return;
-      }
-
-      if (!this._canvas) {
-        console.warn(`${LOG_PREFIX} No canvas reference — cannot request pointer lock`);
-        return;
-      }
-
+      const now = performance.now();
+      if (now - this._lastLockAttempt < 500) return;
+      this._lastLockAttempt = now;
       this._pointerLockAttempts++;
-      console.log(`${LOG_PREFIX} Requesting pointer lock (attempt #${this._pointerLockAttempts})`);
 
       try {
         const result = this._canvas.requestPointerLock();
         if (result && typeof (result as Promise<void>).then === 'function') {
           (result as Promise<void>).then(() => {
-            console.log(`${LOG_PREFIX} Pointer lock promise resolved`);
-          }).catch((err: Error) => {
-            console.warn(`${LOG_PREFIX} Pointer lock promise rejected:`, err.message);
-          });
+            console.log(`${LOG_PREFIX} Pointer locked`);
+          }).catch(() => {});
         }
-      } catch (err) {
-        console.error(`${LOG_PREFIX} requestPointerLock threw:`, err);
-      }
+      } catch {}
     };
 
     window.addEventListener('keydown', this._handleKeyDown);
