@@ -66,6 +66,10 @@ export class GameApp {
   }
 
   async start(): Promise<void> {
+    console.log('[GameApp] Starting...');
+    console.log(`[GameApp] Canvas: ${this.canvas.id}, ${this.canvas.width}x${this.canvas.height}`);
+    console.log(`[GameApp] Player: ${this.playerName}, race: ${this.characterRace}, weapon: ${this.characterWeapon}`);
+
     this.settings = new SettingsManager();
     this.audio = new AudioManager(this.settings);
 
@@ -90,6 +94,7 @@ export class GameApp {
     this.dayNight = this.sceneResult.dayNight;
 
     this.inputController = new InputController();
+    this.inputController.attachCanvas(this.canvas);
 
     const spawn = { x: 0, y: 0, z: 10 };
     this.playerController = new PlayerController(
@@ -172,6 +177,7 @@ export class GameApp {
     this.mainMenu.hide();
     this.audio.startAmbient();
     this.connectToServer();
+    console.log('[GameApp] World entered — click the 3D canvas to capture mouse, or right-click+drag to orbit');
   }
 
   private applySettings(s: ReturnType<SettingsManager['get']>): void {
