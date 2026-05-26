@@ -1,277 +1,108 @@
-import {
-  SkySettings,
-  AtmosphereSettings,
-  TimeOfDayState,
-  WeatherState,
-  Color3,
-} from './types';
+import type { SkySettings, AtmosphereSettings, TimeOfDayState, WeatherState, Color3 } from './types';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Clamp a value to [0, 1]. */
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-/** Hermite smoothstep: smooth transition between 0 and 1 over [edge0, edge1]. */
-function smoothstep(edge0: number, edge1: number, x: number): number {
-  const t = clamp01((x - edge0) / (edge1 - edge0));
-  return t * t * (3 - 2 * t);
-}
-
-/** Linear interpolate between two scalars. */
 function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
+  return a + (b - a) * clamp01(t);
 }
 
-/** Linear interpolate between two Color3 values. */
 function lerpColor(a: Color3, b: Color3, t: number): Color3 {
-  return {
-    r: lerp(a.r, b.r, t),
-    g: lerp(a.g, b.g, t),
-    b: lerp(a.b, b.b, t),
-  };
+  const ct = clamp01(t);
+  return { r: a.r + (b.r - a.r) * ct, g: a.g + (b.g - a.g) * ct, b: a.b + (b.b - a.b) * ct };
 }
 
-/** Multiply two Color3 values component-wise. */
 function mulColor(a: Color3, b: Color3): Color3 {
   return { r: a.r * b.r, g: a.g * b.g, b: a.b * b.b };
 }
 
-// ---------------------------------------------------------------------------
-// Time-of-day transition weights
-//
-// worldTime is 0..1 where:
-//   0.00 = midnight
-//   0.25 = dawn
-//   0.50 = noon
-//   0.75 = dusk
-//   1.00 = midnight (next day)
-//
-// We derive five blend weights that sum to 1:
-//   wNight, wDawn, wNoon, wDusk, wMidnight (same as wNight at wrap point)
-// ---------------------------------------------------------------------------
+const DEG_TO_RAD = Math.PI / 180;
 
-interface TimeWeights {
-  /** Full night weight (covers both midnight wings) */
-  night: number;
-  /** Dawn / sunrise weight */
-  dawn: number;
-  /** Noon / midday weight */
-  noon: number;
-  /** Dusk / sunset weight */
-  dusk: number;
-  /** Midnight specifically (subset of night — used for moon/stars peak) */
-  midnight: number;
-  /** Golden-hour weight = max(dawn, dusk) */
-  goldenHour: number;
+function isGoldenHour(time: TimeOfDayState): number {
+  const t = time.worldTime;
+  const dawn = Math.max(0, 1 - Math.abs(t - 0.25) / 0.08);
+  const dusk = Math.max(0, 1 - Math.abs(t - 0.75) / 0.08);
+  return Math.max(dawn, dusk);
 }
-
-function computeTimeWeights(worldTime: number): TimeWeights {
-  // Normalise to 0..1 (handles potential floating point overshoot)
-  const t = ((worldTime % 1) + 1) % 1;
-
-  // Key transition times
-  const MIDNIGHT = 0.0;
-  const DAWN_START = 0.18;   // ~4:20
-  const DAWN_PEAK = 0.25;    // ~6:00
-  const DAWN_END = 0.33;     // ~8:00
-  const NOON_START = 0.40;   // ~9:30
-  const NOON_PEAK = 0.50;    // ~12:00
-  const NOON_END = 0.60;     // ~14:30
-  const DUSK_START = 0.67;   // ~16:00
-  const DUSK_PEAK = 0.75;    // ~18:00
-  const DUSK_END = 0.83;     // ~20:00
-  const NIGHT_FULL = 0.92;   // ~22:00
-
-  // Dawn weight: bell curve centred on DAWN_PEAK
-  const dawn =
-    smoothstep(DAWN_START, DAWN_PEAK, t) *
-    (1 - smoothstep(DAWN_PEAK, DAWN_END, t));
-
-  // Noon weight: bell curve centred on NOON_PEAK
-  const noon =
-    smoothstep(NOON_START, NOON_PEAK, t) *
-    (1 - smoothstep(NOON_PEAK, NOON_END, t));
-
-  // Dusk weight: bell curve centred on DUSK_PEAK
-  const dusk =
-    smoothstep(DUSK_START, DUSK_PEAK, t) *
-    (1 - smoothstep(DUSK_PEAK, DUSK_END, t));
-
-  // Night weight: high outside golden-hour windows
-  // Fades in after dusk, fades out before dawn.
-  const nightAfterDusk = smoothstep(DUSK_END, NIGHT_FULL, t);
-  const nightBeforeDawn = 1 - smoothstep(MIDNIGHT, DAWN_START, t);
-  const night = Math.max(nightAfterDusk, nightBeforeDawn);
-
-  // Midnight weight peaks at t=0 / t=1 boundary — use sine trick
-  const distFromMidnight = Math.min(t, 1 - t); // 0 at midnight, 0.5 at noon
-  const midnight = smoothstep(0.15, 0, distFromMidnight);
-
-  const goldenHour = Math.max(dawn, dusk);
-
-  return { night, dawn, noon, dusk, midnight, goldenHour };
-}
-
-// ---------------------------------------------------------------------------
-// Reference color palettes
-// ---------------------------------------------------------------------------
-
-const ZENITH_NOON: Color3 = { r: 0.15, g: 0.30, b: 0.70 };
-const ZENITH_NIGHT: Color3 = { r: 0.01, g: 0.01, b: 0.04 };
-const ZENITH_DAWN: Color3 = { r: 0.55, g: 0.35, b: 0.45 }; // warm mauve-pink
-const ZENITH_DUSK: Color3 = { r: 0.50, g: 0.28, b: 0.38 }; // slightly redder
-
-const HORIZON_NOON: Color3 = { r: 0.50, g: 0.65, b: 0.85 };
-const HORIZON_NIGHT: Color3 = { r: 0.06, g: 0.06, b: 0.10 };
-const HORIZON_DAWN: Color3 = { r: 1.00, g: 0.50, b: 0.20 }; // gold-orange
-const HORIZON_DUSK: Color3 = { r: 1.00, g: 0.38, b: 0.12 }; // deeper orange
-
-const GROUND_NOON: Color3 = { r: 0.12, g: 0.10, b: 0.08 };
-const GROUND_NIGHT: Color3 = { r: 0.04, g: 0.03, b: 0.03 };
-const GROUND_GOLDEN: Color3 = { r: 0.20, g: 0.14, b: 0.08 }; // warm earth
-
-const SUN_NOON: Color3 = { r: 1.00, g: 0.95, b: 0.85 };
-const SUN_GOLDEN: Color3 = { r: 1.00, g: 0.40, b: 0.10 }; // deep orange
-
-const MOON_COLOR: Color3 = { r: 0.60, g: 0.65, b: 0.80 };
-
-// ---------------------------------------------------------------------------
-// Main export
-// ---------------------------------------------------------------------------
 
 export function computeSkyState(
   time: TimeOfDayState,
   weather: WeatherState,
   biomeSkytint?: Color3,
 ): { sky: SkySettings; atmosphere: AtmosphereSettings } {
-  const w = computeTimeWeights(time.worldTime);
+  const daylight = time.daylight;
+  const nightFactor = time.nightFactor;
+  const golden = isGoldenHour(time);
 
-  // ------------------------------------------------------------------
-  // Zenith color
-  // ------------------------------------------------------------------
-  // Start from night base, blend in golden-hour colours, then noon.
-  let zenith = lerpColor(ZENITH_NIGHT, ZENITH_DAWN, w.dawn);
-  zenith = lerpColor(zenith, ZENITH_DUSK, w.dusk);
-  zenith = lerpColor(zenith, ZENITH_NOON, w.noon);
+  const ZENITH_DAY: Color3 = { r: 0.15, g: 0.35, b: 0.75 };
+  const ZENITH_NIGHT: Color3 = { r: 0.01, g: 0.01, b: 0.04 };
+  const ZENITH_GOLDEN: Color3 = { r: 0.45, g: 0.25, b: 0.40 };
 
-  // ------------------------------------------------------------------
-  // Horizon color
-  // ------------------------------------------------------------------
-  let horizon = lerpColor(HORIZON_NIGHT, HORIZON_DAWN, w.dawn);
-  horizon = lerpColor(horizon, HORIZON_DUSK, w.dusk);
-  horizon = lerpColor(horizon, HORIZON_NOON, w.noon);
+  const HORIZON_DAY: Color3 = { r: 0.55, g: 0.70, b: 0.90 };
+  const HORIZON_NIGHT: Color3 = { r: 0.05, g: 0.05, b: 0.10 };
+  const HORIZON_GOLDEN: Color3 = { r: 1.0, g: 0.50, b: 0.18 };
 
-  // ------------------------------------------------------------------
-  // Ground color
-  // ------------------------------------------------------------------
-  let ground = lerpColor(GROUND_NIGHT, GROUND_GOLDEN, w.goldenHour);
-  ground = lerpColor(ground, GROUND_NOON, w.noon);
+  const GROUND_DAY: Color3 = { r: 0.12, g: 0.10, b: 0.08 };
+  const GROUND_NIGHT: Color3 = { r: 0.04, g: 0.03, b: 0.03 };
 
-  // ------------------------------------------------------------------
-  // Sun color & intensity
-  // ------------------------------------------------------------------
-  const sunColor = lerpColor(SUN_GOLDEN, SUN_NOON, w.noon);
-  let sunIntensity = lerp(0.0, 2.0, w.noon);
-  // Partial intensity during golden hours
-  sunIntensity = Math.max(sunIntensity, lerp(0.0, 0.8, w.goldenHour));
-  // Night: no sun
-  sunIntensity *= 1 - w.night;
+  let zenith = lerpColor(ZENITH_NIGHT, ZENITH_DAY, daylight);
+  zenith = lerpColor(zenith, ZENITH_GOLDEN, golden * 0.6);
 
-  // Sun disk & glow — larger/stronger at horizon
-  const sunDiskSize = lerp(0.03, 0.015, w.noon);
-  const sunGlowIntensity = lerp(0.8, 0.3, w.noon) * (1 - w.night);
+  let horizon = lerpColor(HORIZON_NIGHT, HORIZON_DAY, daylight);
+  horizon = lerpColor(horizon, HORIZON_GOLDEN, golden * 0.8);
 
-  // ------------------------------------------------------------------
-  // Moon
-  // ------------------------------------------------------------------
-  const moonIntensity = lerp(0.0, 0.30, w.midnight) + lerp(0.0, 0.10, w.night * (1 - w.midnight));
-  const moonGlowIntensity = moonIntensity * 0.5;
+  const ground = lerpColor(GROUND_NIGHT, GROUND_DAY, daylight);
 
-  // Sun/moon directions derived from sunAltitude / moonAltitude
-  // sunAltitude is in radians, negative when below horizon
-  const sunElevation = time.sunAltitude;
-  const moonElevation = time.moonAltitude;
+  const sunAzRad = time.sunAngle * DEG_TO_RAD;
+  const sunAltRad = time.sunAltitude * DEG_TO_RAD;
+  const cosAlt = Math.cos(sunAltRad);
   const sunDirection = {
-    x: Math.cos(time.sunAngle) * Math.cos(sunElevation),
-    y: Math.sin(sunElevation),
-    z: Math.sin(time.sunAngle) * Math.cos(sunElevation),
+    x: -(cosAlt * Math.cos(sunAzRad)),
+    y: -Math.sin(sunAltRad),
+    z: -(cosAlt * Math.sin(sunAzRad)),
   };
+
+  const moonAzRad = time.moonAngle * DEG_TO_RAD;
+  const moonAltRad = time.moonAltitude * DEG_TO_RAD;
+  const cosMoonAlt = Math.cos(moonAltRad);
   const moonDirection = {
-    x: Math.cos(time.moonAngle) * Math.cos(moonElevation),
-    y: Math.sin(moonElevation),
-    z: Math.sin(time.moonAngle) * Math.cos(moonElevation),
+    x: -(cosMoonAlt * Math.cos(moonAzRad)),
+    y: -Math.sin(moonAltRad),
+    z: -(cosMoonAlt * Math.sin(moonAzRad)),
   };
 
-  // ------------------------------------------------------------------
-  // Star visibility
-  // ------------------------------------------------------------------
-  // Fully visible at midnight, zero at noon. Gradual fade through dusk/dawn.
-  const starVisibility = clamp01(
-    w.night * (1 - smoothstep(0.0, 0.3, w.goldenHour)),
-  );
+  const SUN_DAY: Color3 = { r: 1.0, g: 0.95, b: 0.85 };
+  const SUN_GOLDEN: Color3 = { r: 1.0, g: 0.45, b: 0.12 };
+  const sunColor = lerpColor(SUN_DAY, SUN_GOLDEN, golden);
 
-  // ------------------------------------------------------------------
-  // Exposure
-  // ------------------------------------------------------------------
-  // Base: 1.0 at noon, 0.5 at night. Golden-hour boost to 1.2.
-  let exposure = lerp(0.5, 1.0, w.noon);
-  exposure = Math.max(exposure, lerp(exposure, 1.2, w.goldenHour));
-  exposure = lerp(0.5, exposure, 1 - w.night * 0.5);
+  let sunIntensity = daylight * 2.0;
+  sunIntensity = Math.max(sunIntensity, golden * 0.8);
 
-  // ------------------------------------------------------------------
-  // Weather influence
-  // ------------------------------------------------------------------
-  const isOvercast = weather.type === 'overcast';
-  const isRain = weather.type === 'rain' || weather.type === 'thunderstorm';
-  const isSnow = weather.type === 'snow' || weather.type === 'blizzard';
-  const isFoggy = weather.type === 'foggy';
-  const isDust = weather.type === 'dust_storm' || weather.type === 'ash_storm';
+  const sunDiskSize = lerp(0.015, 0.04, golden);
+  const sunGlowIntensity = lerp(0.3, 0.8, golden) * daylight;
 
-  const weatherDarkness = weather.lightReduction * weather.intensity;
+  const moonColor: Color3 = { r: 0.60, g: 0.65, b: 0.80 };
+  const moonIntensity = nightFactor * 0.3;
+  const moonGlowIntensity = nightFactor * 0.15;
 
-  if (isOvercast || isRain || isSnow) {
-    // Desaturate and darken sky toward gray
-    const grayZenith: Color3 = { r: 0.25, g: 0.27, b: 0.30 };
-    const grayHorizon: Color3 = { r: 0.35, g: 0.36, b: 0.38 };
-    const blend = clamp01(weatherDarkness * (isRain ? 1.0 : 0.7));
-    zenith = lerpColor(zenith, grayZenith, blend);
-    horizon = lerpColor(horizon, grayHorizon, blend);
+  const starVisibility = clamp01(nightFactor * 1.5 - golden * 0.5);
+
+  let exposure = lerp(0.5, 1.0, daylight);
+  exposure = Math.max(exposure, lerp(1.0, 1.2, golden));
+
+  const weatherDark = weather.lightReduction * weather.intensity;
+  if (weatherDark > 0) {
+    const gray: Color3 = { r: 0.3, g: 0.32, b: 0.35 };
+    zenith = lerpColor(zenith, gray, weatherDark * 0.6);
+    horizon = lerpColor(horizon, gray, weatherDark * 0.4);
+    sunIntensity *= 1 - weatherDark * 0.7;
+    exposure *= 1 - weatherDark * 0.2;
   }
 
-  if (isDust) {
-    const dustZenith: Color3 = { r: 0.55, g: 0.42, b: 0.18 };
-    const dustHorizon: Color3 = { r: 0.75, g: 0.55, b: 0.22 };
-    const blend = clamp01(weather.intensity * 0.8);
-    zenith = lerpColor(zenith, dustZenith, blend);
-    horizon = lerpColor(horizon, dustHorizon, blend);
-  }
-
-  // Reduce sun intensity during overcast/rain
-  const weatherSunReduction = isOvercast
-    ? 0.5
-    : isRain
-    ? 0.75
-    : isSnow
-    ? 0.4
-    : 0.0;
-  sunIntensity *= 1 - clamp01(weatherSunReduction * weather.intensity);
-
-  // weatherInfluence: 0 = clear, 1 = fully weather-controlled
-  const weatherInfluence = clamp01(weatherDarkness);
-
-  // cloudShadowInfluence
-  const cloudShadowInfluence = clamp01(weather.cloudCoverage * 0.8);
-
-  // ------------------------------------------------------------------
-  // Biome sky tint — multiplied into zenith and horizon
-  // ------------------------------------------------------------------
-  const tintColor: Color3 = biomeSkytint ?? { r: 1, g: 1, b: 1 };
-  zenith = mulColor(zenith, tintColor);
-  horizon = mulColor(horizon, tintColor);
+  const tint = biomeSkytint ?? { r: 1, g: 1, b: 1 };
+  zenith = mulColor(zenith, tint);
+  horizon = mulColor(horizon, tint);
 
   const sky: SkySettings = {
     zenithColor: zenith,
@@ -283,79 +114,24 @@ export function computeSkyState(
     sunDiskSize,
     sunGlowIntensity,
     moonDirection,
-    moonColor: MOON_COLOR,
+    moonColor,
     moonIntensity,
     moonGlowIntensity,
     starVisibility,
     exposure,
-    skyTint: tintColor,
-    weatherInfluence,
-    cloudShadowInfluence,
+    skyTint: tint,
+    weatherInfluence: clamp01(weatherDark),
+    cloudShadowInfluence: clamp01(weather.cloudCoverage * 0.6),
   };
 
-  // ------------------------------------------------------------------
-  // Atmosphere settings
-  // ------------------------------------------------------------------
-
-  // Rayleigh peaks at full daylight, lower at night
-  const rayleighDay = 0.8;
-  const rayleighNight = 0.15;
-  const rayleighStrength = lerp(rayleighNight, rayleighDay, 1 - w.night);
-
-  // Mie increases at golden hour (haze, particles) and during rain/fog
-  let mieStrength = lerp(0.05, 0.30, w.goldenHour);
-  mieStrength = Math.max(mieStrength, lerp(0, 0.15, w.noon)); // slight haze at noon
-  if (isRain || isFoggy) {
-    mieStrength = Math.min(1.0, mieStrength + 0.25 * weather.intensity);
-  }
-  if (isDust) {
-    mieStrength = Math.min(1.0, mieStrength + 0.45 * weather.intensity);
-  }
-
-  // Mie anisotropy: more directional at sunset, diffuse in fog
-  let mieAnisotropy = lerp(0.3, 0.65, w.goldenHour);
-  if (isFoggy || isRain) {
-    mieAnisotropy = lerp(mieAnisotropy, 0.1, weather.intensity * 0.5);
-  }
-
-  // Atmosphere density: slightly thicker in bad weather
-  const atmosphereDensity =
-    1.0 + clamp01(weatherDarkness) * 0.3;
-
-  // Horizon falloff: sharper on clear days, softer in fog
-  let horizonFalloff = lerp(3.0, 1.5, w.goldenHour); // softer at golden hour
-  if (isFoggy) {
-    horizonFalloff = lerp(horizonFalloff, 0.8, weather.intensity * 0.6);
-  }
-  if (isRain) {
-    horizonFalloff = lerp(horizonFalloff, 1.2, weather.intensity * 0.4);
-  }
-
-  // Sky exposure mirrors the main exposure but clamped differently
-  const skyExposure = clamp01(exposure * 0.9);
-
-  // Scatter color: blue at noon, orange at golden hour, gray in weather
-  let scatterColor = lerpColor(
-    { r: 0.4, g: 0.6, b: 1.0 },
-    { r: 1.0, g: 0.55, b: 0.2 },
-    w.goldenHour,
-  );
-  if (isOvercast || isRain) {
-    scatterColor = lerpColor(
-      scatterColor,
-      { r: 0.55, g: 0.55, b: 0.58 },
-      clamp01(weatherDarkness),
-    );
-  }
-
   const atmosphere: AtmosphereSettings = {
-    rayleighStrength,
-    mieStrength,
-    mieAnisotropy,
-    atmosphereDensity,
-    horizonFalloff,
-    skyExposure,
-    scatterColor,
+    rayleighStrength: lerp(0.2, 0.8, daylight),
+    mieStrength: lerp(0.05, 0.3, golden) + weather.fogBoost * 0.2,
+    mieAnisotropy: lerp(0.3, 0.7, golden),
+    atmosphereDensity: lerp(0.5, 1.0, daylight),
+    horizonFalloff: lerp(2.0, 4.0, weather.fogBoost),
+    skyExposure: exposure,
+    scatterColor: lerpColor({ r: 0.3, g: 0.5, b: 1.0 }, { r: 1.0, g: 0.6, b: 0.2 }, golden),
   };
 
   return { sky, atmosphere };
