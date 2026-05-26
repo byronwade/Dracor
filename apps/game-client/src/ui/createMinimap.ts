@@ -1,8 +1,3 @@
-/* ------------------------------------------------------------------ *
- *  createMinimap.ts — pure DOM/Canvas minimap overlay for the game    *
- *  No Babylon.js dependency. Uses Canvas2D only.                      *
- * ------------------------------------------------------------------ */
-
 export interface Minimap {
   updatePlayerPosition: (x: number, z: number, yaw: number) => void;
   updateRemotePlayers: (players: Array<{ x: number; z: number }>) => void;
@@ -10,34 +5,43 @@ export interface Minimap {
   dispose: () => void;
 }
 
-// ── Constants ──────────────────────────────────────────────────────
-
 const CANVAS_SIZE = 180;
 const WORLD_MIN = -250;
 const WORLD_MAX = 250;
-const WORLD_RANGE = WORLD_MAX - WORLD_MIN; // 500
-const TERRAIN_SAMPLE_STEP = 3; // sample every 3 px for perf
+const WORLD_RANGE = WORLD_MAX - WORLD_MIN;
+const SAMPLE_STEP = 2;
 const ZONE_NAME = "Ironvale Outskirts";
 
 const ROAD_POINTS = [
-  { x: -180, z: 180 },
-  { x: -120, z: 130 },
-  { x: -60, z: 80 },
-  { x: -20, z: 30 },
-  { x: 0, z: 0 },
-  { x: 25, z: -40 },
-  { x: 60, z: -90 },
-  { x: 110, z: -140 },
-  { x: 170, z: -180 },
+  { x: -220, z: -200 },
+  { x: -160, z: -140 },
+  { x: -100, z: -80 },
+  { x: -40, z: -20 },
+  { x: 10, z: 30 },
+  { x: 60, z: 90 },
+  { x: 120, z: 140 },
+  { x: 170, z: 180 },
+  { x: 220, z: 220 },
 ];
 
-const LANDMARKS: Array<{ x: number; z: number; type: string }> = [
-  { x: 30, z: -60, type: "shrine" },
-  { x: -100, z: 90, type: "gate" },
-  { x: 50, z: -120, type: "bridge" },
+const LANDMARKS: Array<{ x: number; z: number; type: string; name: string }> = [
+  { x: 30, z: 50, type: "shrine", name: "Shrine" },
+  { x: -40, z: -20, type: "gate", name: "Gate" },
+  { x: 100, z: 120, type: "bridge", name: "Bridge" },
 ];
 
-// ── Height sampling (matches terrain generator) ────────────────────
+const WATER: Array<{ x: number; z: number; w: number; d: number }> = [
+  { x: 90, z: 110, w: 5, d: 80 },
+];
+
+const BIOME_REGIONS: Array<{
+  cx: number; cz: number; radius: number;
+  color: [number, number, number];
+}> = [
+  { cx: 0, cz: 0, radius: 220, color: [0.18, 0.14, 0.1] },
+  { cx: -160, cz: -140, radius: 100, color: [0.12, 0.10, 0.07] },
+  { cx: -180, cz: -120, radius: 60, color: [0.22, 0.18, 0.15] },
+];
 
 function sampleHeight(x: number, z: number): number {
   let h = Math.sin(x * 0.008) * Math.cos(z * 0.006) * 0.4;
@@ -49,29 +53,41 @@ function sampleHeight(x: number, z: number): number {
   return h * 8.0 * flatten;
 }
 
-// ── Coordinate helpers ─────────────────────────────────────────────
-
-/** Map a world-space coordinate to canvas pixel. */
-function worldToCanvas(v: number): number {
+function w2c(v: number): number {
   return ((v - WORLD_MIN) / WORLD_RANGE) * CANVAS_SIZE;
 }
 
-// ── Terrain pre-render ─────────────────────────────────────────────
+function getBiomeTint(wx: number, wz: number): [number, number, number] {
+  const base: [number, number, number] = [0.18, 0.14, 0.1];
+  for (let i = 1; i < BIOME_REGIONS.length; i++) {
+    const b = BIOME_REGIONS[i];
+    const dx = wx - b.cx;
+    const dz = wz - b.cz;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist < b.radius * 0.6) return b.color;
+    if (dist < b.radius) {
+      const t = (dist - b.radius * 0.6) / (b.radius * 0.4);
+      return [
+        base[0] + (b.color[0] - base[0]) * (1 - t),
+        base[1] + (b.color[1] - base[1]) * (1 - t),
+        base[2] + (b.color[2] - base[2]) * (1 - t),
+      ];
+    }
+  }
+  return base;
+}
 
-function renderTerrainToCanvas(ctx: CanvasRenderingContext2D): void {
-  // First pass: find height range for normalisation
+function renderTerrain(ctx: CanvasRenderingContext2D): void {
+  const cols = Math.ceil(CANVAS_SIZE / SAMPLE_STEP);
+  const rows = cols;
+  const samples: number[] = [];
   let hMin = Infinity;
   let hMax = -Infinity;
-  const samples: number[] = [];
-  const cols = Math.ceil(CANVAS_SIZE / TERRAIN_SAMPLE_STEP);
-  const rows = cols;
 
   for (let row = 0; row < rows; row++) {
-    const pz = row * TERRAIN_SAMPLE_STEP;
-    const wz = WORLD_MIN + (pz / CANVAS_SIZE) * WORLD_RANGE;
+    const wz = WORLD_MIN + (row / rows) * WORLD_RANGE;
     for (let col = 0; col < cols; col++) {
-      const px = col * TERRAIN_SAMPLE_STEP;
-      const wx = WORLD_MIN + (px / CANVAS_SIZE) * WORLD_RANGE;
+      const wx = WORLD_MIN + (col / cols) * WORLD_RANGE;
       const h = sampleHeight(wx, wz);
       samples.push(h);
       if (h < hMin) hMin = h;
@@ -80,49 +96,61 @@ function renderTerrainToCanvas(ctx: CanvasRenderingContext2D): void {
   }
 
   const hRange = hMax - hMin || 1;
-
-  // Second pass: draw coloured rectangles
   let idx = 0;
-  for (let row = 0; row < rows; row++) {
-    const py = row * TERRAIN_SAMPLE_STEP;
-    for (let col = 0; col < cols; col++) {
-      const px = col * TERRAIN_SAMPLE_STEP;
-      const t = (samples[idx] - hMin) / hRange; // 0 = lowest, 1 = highest
 
-      // Dark brown gradient: low = darker, high = lighter
-      const r = Math.floor(30 + t * 60); // 30..90
-      const g = Math.floor(20 + t * 45); // 20..65
-      const b = Math.floor(10 + t * 20); // 10..30
+  for (let row = 0; row < rows; row++) {
+    const py = row * SAMPLE_STEP;
+    const wz = WORLD_MIN + (row / rows) * WORLD_RANGE;
+    for (let col = 0; col < cols; col++) {
+      const px = col * SAMPLE_STEP;
+      const wx = WORLD_MIN + (col / cols) * WORLD_RANGE;
+      const t = (samples[idx] - hMin) / hRange;
+      const tint = getBiomeTint(wx, wz);
+
+      const base = 40 + t * 80;
+      const r = Math.min(255, Math.max(0, Math.floor(base * (tint[0] / 0.18))));
+      const g = Math.min(255, Math.max(0, Math.floor(base * (tint[1] / 0.14))));
+      const b = Math.min(255, Math.max(0, Math.floor(base * (tint[2] / 0.1))));
 
       ctx.fillStyle = `rgb(${r},${g},${b})`;
-      ctx.fillRect(px, py, TERRAIN_SAMPLE_STEP, TERRAIN_SAMPLE_STEP);
+      ctx.fillRect(px, py, SAMPLE_STEP, SAMPLE_STEP);
       idx++;
     }
   }
 }
 
-// ── Drawing helpers ────────────────────────────────────────────────
+function renderWater(ctx: CanvasRenderingContext2D): void {
+  ctx.fillStyle = "rgba(40, 80, 140, 0.5)";
+  for (const w of WATER) {
+    const cx = w2c(w.x);
+    const cz = w2c(w.z);
+    const cw = (w.w / WORLD_RANGE) * CANVAS_SIZE;
+    const cd = (w.d / WORLD_RANGE) * CANVAS_SIZE;
+    ctx.fillRect(cx - cw / 2, cz - cd / 2, Math.max(1, cw), cd);
+  }
+}
 
-function drawRoad(ctx: CanvasRenderingContext2D): void {
+function renderRoad(ctx: CanvasRenderingContext2D): void {
   ctx.beginPath();
-  ctx.strokeStyle = "rgba(160,160,160,0.5)";
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(170, 160, 140, 0.45)";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 3]);
   for (let i = 0; i < ROAD_POINTS.length; i++) {
-    const cx = worldToCanvas(ROAD_POINTS[i].x);
-    const cy = worldToCanvas(ROAD_POINTS[i].z);
+    const cx = w2c(ROAD_POINTS[i].x);
+    const cy = w2c(ROAD_POINTS[i].z);
     if (i === 0) ctx.moveTo(cx, cy);
     else ctx.lineTo(cx, cy);
   }
   ctx.stroke();
+  ctx.setLineDash([]);
 }
 
-function drawLandmarks(ctx: CanvasRenderingContext2D): void {
+function renderLandmarks(ctx: CanvasRenderingContext2D): void {
   for (const lm of LANDMARKS) {
-    const cx = worldToCanvas(lm.x);
-    const cy = worldToCanvas(lm.z);
+    const cx = w2c(lm.x);
+    const cy = w2c(lm.z);
 
     if (lm.type === "shrine") {
-      // Orange diamond
       const s = 4;
       ctx.beginPath();
       ctx.moveTo(cx, cy - s);
@@ -132,69 +160,102 @@ function drawLandmarks(ctx: CanvasRenderingContext2D): void {
       ctx.closePath();
       ctx.fillStyle = "#e87f24";
       ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy, s + 2, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(232, 127, 36, 0.2)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else if (lm.type === "bridge") {
+      ctx.fillStyle = "rgba(140, 120, 100, 0.8)";
+      ctx.fillRect(cx - 3, cy - 2, 6, 4);
     } else {
-      // Gray square for gate / bridge
       const s = 3;
-      ctx.fillStyle = "rgba(180,180,180,0.8)";
+      ctx.fillStyle = "rgba(180, 180, 180, 0.7)";
       ctx.fillRect(cx - s / 2, cy - s / 2, s, s);
     }
+
+    ctx.font = "7px monospace";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+    ctx.fillText(lm.name, cx, cy - 7);
   }
 }
 
-function drawPlayer(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  z: number,
-  yaw: number,
-): void {
-  const cx = worldToCanvas(x);
-  const cy = worldToCanvas(z);
-  const radius = 5;
+function renderGrid(ctx: CanvasRenderingContext2D): void {
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+  ctx.lineWidth = 1;
+  const step = CANVAS_SIZE / 5;
+  for (let i = 1; i < 5; i++) {
+    const pos = i * step;
+    ctx.beginPath();
+    ctx.moveTo(pos, 0);
+    ctx.lineTo(pos, CANVAS_SIZE);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, pos);
+    ctx.lineTo(CANVAS_SIZE, pos);
+    ctx.stroke();
+  }
+}
 
-  // Direction line (10px long from centre)
-  const lineLen = 10;
-  const dx = Math.sin(yaw) * lineLen;
-  const dy = -Math.cos(yaw) * lineLen; // canvas Y is down, world Z forward
+function renderNorth(ctx: CanvasRenderingContext2D): void {
+  ctx.font = "bold 9px monospace";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "rgba(255, 200, 200, 0.7)";
+  ctx.fillText("N", CANVAS_SIZE / 2, 10);
+}
+
+function renderPlayer(
+  ctx: CanvasRenderingContext2D,
+  x: number, z: number, yaw: number
+): void {
+  const cx = w2c(x);
+  const cy = w2c(z);
+
+  const coneLen = 10;
+  const spread = 0.35;
   ctx.beginPath();
   ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + dx, cy + dy);
+  ctx.lineTo(cx + Math.sin(yaw - spread) * coneLen, cy - Math.cos(yaw - spread) * coneLen);
+  ctx.lineTo(cx + Math.sin(yaw + spread) * coneLen, cy - Math.cos(yaw + spread) * coneLen);
+  ctx.closePath();
+  ctx.fillStyle = "rgba(255, 160, 40, 0.15)";
+  ctx.fill();
+
+  const lineLen = 8;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.sin(yaw) * lineLen, cy - Math.cos(yaw) * lineLen);
   ctx.strokeStyle = "#ffb347";
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Orange dot
   ctx.beginPath();
-  ctx.arc(cx, cy, radius / 2, 0, Math.PI * 2);
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
   ctx.fillStyle = "#ff8c00";
   ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
 }
 
-function drawRemotePlayers(
+function renderRemotePlayers(
   ctx: CanvasRenderingContext2D,
-  players: Array<{ x: number; z: number }>,
+  players: Array<{ x: number; z: number }>
 ): void {
   ctx.fillStyle = "#4da6ff";
   for (const p of players) {
-    const cx = worldToCanvas(p.x);
-    const cy = worldToCanvas(p.z);
+    const cx = w2c(p.x);
+    const cy = w2c(p.z);
     ctx.beginPath();
-    ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
-function drawNorthIndicator(ctx: CanvasRenderingContext2D): void {
-  ctx.font = "bold 10px monospace";
-  ctx.textAlign = "center";
-  ctx.fillStyle = "rgba(255,255,255,0.7)";
-  ctx.fillText("N", CANVAS_SIZE / 2, 11);
-}
-
-// ── Public API ─────────────────────────────────────────────────────
-
 export function createMinimap(): Minimap {
-  // ── Container ──────────────────────────────────────────────────
   const container = document.createElement("div");
+  container.id = "minimap-container";
   Object.assign(container.style, {
     position: "absolute",
     bottom: "16px",
@@ -207,7 +268,6 @@ export function createMinimap(): Minimap {
     alignItems: "center",
   } satisfies Partial<CSSStyleDeclaration>);
 
-  // ── Visible canvas ────────────────────────────────────────────
   const canvas = document.createElement("canvas");
   canvas.width = CANVAS_SIZE;
   canvas.height = CANVAS_SIZE;
@@ -219,7 +279,6 @@ export function createMinimap(): Minimap {
     background: "rgba(0,0,0,0.7)",
   } satisfies Partial<CSSStyleDeclaration>);
 
-  // ── Zone name label ───────────────────────────────────────────
   const label = document.createElement("div");
   Object.assign(label.style, {
     color: "rgba(255,255,255,0.55)",
@@ -235,49 +294,40 @@ export function createMinimap(): Minimap {
   container.appendChild(label);
   document.body.appendChild(container);
 
-  // ── Offscreen terrain layer (rendered once) ───────────────────
   const terrainCanvas = document.createElement("canvas");
   terrainCanvas.width = CANVAS_SIZE;
   terrainCanvas.height = CANVAS_SIZE;
   const terrainCtx = terrainCanvas.getContext("2d")!;
-  renderTerrainToCanvas(terrainCtx);
+  renderTerrain(terrainCtx);
+  renderWater(terrainCtx);
+  renderGrid(terrainCtx);
+  renderRoad(terrainCtx);
+  renderLandmarks(terrainCtx);
+  renderNorth(terrainCtx);
 
-  // Also bake the static road + landmarks into the terrain layer
-  drawRoad(terrainCtx);
-  drawLandmarks(terrainCtx);
-  drawNorthIndicator(terrainCtx);
-
-  // ── Main drawing context ──────────────────────────────────────
   const ctx = canvas.getContext("2d")!;
 
-  // State
-  let lastPlayerX = 0;
-  let lastPlayerZ = 0;
+  let lastX = 0;
+  let lastZ = 0;
   let lastYaw = 0;
   let remotes: Array<{ x: number; z: number }> = [];
 
   function redraw(): void {
-    // Clear and stamp the pre-rendered static layer
     ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     ctx.drawImage(terrainCanvas, 0, 0);
-
-    // Dynamic: remote players, then local player on top
-    drawRemotePlayers(ctx, remotes);
-    drawPlayer(ctx, lastPlayerX, lastPlayerZ, lastYaw);
+    renderRemotePlayers(ctx, remotes);
+    renderPlayer(ctx, lastX, lastZ, lastYaw);
   }
 
-  // Initial draw (no player yet, but terrain is visible immediately)
   redraw();
 
-  // ── Click handler ──────────────────────────────────────────────
   let clickHandler: (() => void) | null = null;
   container.addEventListener("click", () => { if (clickHandler) clickHandler(); });
 
-  // ── Public interface ──────────────────────────────────────────
   return {
     updatePlayerPosition(x: number, z: number, yaw: number): void {
-      lastPlayerX = x;
-      lastPlayerZ = z;
+      lastX = x;
+      lastZ = z;
       lastYaw = yaw;
       redraw();
     },

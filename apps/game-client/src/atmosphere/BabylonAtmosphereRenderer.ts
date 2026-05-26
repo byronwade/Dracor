@@ -5,6 +5,11 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { HDRCubeTexture } from '@babylonjs/core/Materials/Textures/hdrCubeTexture';
+import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import { CubeTexture } from '@babylonjs/core/Materials/Textures/cubeTexture';
+import '@babylonjs/core/Helpers/sceneHelpers';
 import { type AtmosphereState, type Color3 as AtmoColor3 } from '@dracor/atmosphere';
 
 function toColor3(c: AtmoColor3): Color3 {
