@@ -117,7 +117,7 @@ export class CameraController {
   }
 
   update(mouse: MouseState, dt: number): void {
-    if (mouse.locked && (mouse.deltaX !== 0 || mouse.deltaY !== 0)) {
+    if (mouse.deltaX !== 0 || mouse.deltaY !== 0) {
       this.targetAlpha -= mouse.deltaX * ORBIT_SENSITIVITY;
       this.targetBeta -= mouse.deltaY * ORBIT_SENSITIVITY;
       this.targetBeta = Math.max(MIN_BETA, Math.min(MAX_BETA, this.targetBeta));
