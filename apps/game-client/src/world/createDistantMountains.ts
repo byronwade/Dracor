@@ -9,7 +9,7 @@ import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
  * Create large dark mountain silhouettes at the far edges of the zone.
  * Uses tapered cylinders (cone-like) to approximate mountain peaks.
  */
-export function createDistantMountains(scene: Scene): void {
+export function createDistantMountains(scene: Scene, getHeightAt?: (x: number, z: number) => number): void {
   const mountainMat = new StandardMaterial('mountainMat', scene);
   mountainMat.diffuseColor = new Color3(0.04, 0.04, 0.06); // Very dark blue-black
   mountainMat.specularColor = Color3.Black();
@@ -51,7 +51,8 @@ export function createDistantMountains(scene: Scene): void {
       },
       scene
     );
-    mountain.position = new Vector3(m.x, m.height * 0.35, m.z);
+    const baseY = getHeightAt ? getHeightAt(m.x, m.z) : 0;
+    mountain.position = new Vector3(m.x, baseY + m.height * 0.35, m.z);
     mountain.material = m.mat;
     mountain.isPickable = false;
     mountain.applyFog = false; // Silhouettes should stay visible through fog
