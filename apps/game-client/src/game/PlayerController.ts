@@ -15,13 +15,14 @@ export interface CharacterConfig {
 
 const WALK_SPEED = 5.0;
 const SPRINT_MULTIPLIER = 1.8;
-const ACCELERATION = 35.0;
-const DECELERATION = 25.0;
+const ACCELERATION = 12.0;
+const DECELERATION = 10.0;
 const GRAVITY = -20.0;
 const JUMP_VELOCITY = 8.0;
 const GROUND_SNAP_THRESHOLD = 0.5;
-const YAW_TURN_SPEED = 12.0;
-const MESH_SMOOTH_FACTOR = 0.18;
+const YAW_TURN_SPEED = 8.0;
+const MESH_SMOOTH_FACTOR = 0.14;
+const INPUT_SMOOTH_FACTOR = 8.0;
 const NETWORK_SEND_INTERVAL = 1000 / 20;
 const SLOPE_SAMPLE_DIST = 0.5;
 const UPHILL_PENALTY = 0.4;
@@ -61,6 +62,8 @@ export class PlayerController {
   private meshX: number;
   private meshY: number;
   private meshZ: number;
+  private smoothMoveX = 0;
+  private smoothMoveZ = 0;
 
   constructor(
     scene: Scene,
@@ -170,14 +173,22 @@ export class PlayerController {
   }
 
   private applyInput(input: InputState, dt: number): void {
-    let moveX = input.moveX;
-    let moveZ = input.moveZ;
+    let rawX = input.moveX;
+    let rawZ = input.moveZ;
+    const rawLen = Math.sqrt(rawX * rawX + rawZ * rawZ);
+    if (rawLen > 1) { rawX /= rawLen; rawZ /= rawLen; }
 
-    const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
-    if (len > 0) {
-      moveX /= len;
-      moveZ /= len;
-    }
+    const inputSmooth = Math.min(1, INPUT_SMOOTH_FACTOR * dt);
+    this.smoothMoveX += (rawX - this.smoothMoveX) * inputSmooth;
+    this.smoothMoveZ += (rawZ - this.smoothMoveZ) * inputSmooth;
+
+    if (Math.abs(this.smoothMoveX) < 0.001) this.smoothMoveX = 0;
+    if (Math.abs(this.smoothMoveZ) < 0.001) this.smoothMoveZ = 0;
+
+    const smoothLen = Math.sqrt(this.smoothMoveX * this.smoothMoveX + this.smoothMoveZ * this.smoothMoveZ);
+    let moveX = this.smoothMoveX;
+    let moveZ = this.smoothMoveZ;
+    if (smoothLen > 1) { moveX /= smoothLen; moveZ /= smoothLen; }
 
     const alpha = this.cameraYaw;
     const forwardX = -Math.cos(alpha);
@@ -193,7 +204,7 @@ export class PlayerController {
     const desiredVx = worldX * maxSpeed;
     const desiredVz = worldZ * maxSpeed;
 
-    const hasInput = len > 0;
+    const hasInput = smoothLen > 0.01;
 
     if (hasInput) {
       const accel = ACCELERATION * dt;
