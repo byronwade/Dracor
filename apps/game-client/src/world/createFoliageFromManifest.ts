@@ -2,16 +2,15 @@ import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector3, Quaternion, Matrix } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import '@babylonjs/core/Meshes/Builders/boxBuilder';
 import '@babylonjs/core/Meshes/Builders/planeBuilder';
+import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 import type { QualitySettings, FoliageGroup } from '../scenes/IronvaleOutskirtsScene';
 
-// Materials cache
 let pineNeedleMat: StandardMaterial | null = null;
 let pineTrunkMat: StandardMaterial | null = null;
 let deadTreeMat: StandardMaterial | null = null;
@@ -45,116 +44,82 @@ function ensureMaterials(scene: Scene): void {
   grassMat.alpha = 0.7;
 }
 
-function createPineTreeSource(scene: Scene): Mesh {
-  const parent = new Mesh('pineSource', scene);
-
-  // Trunk
-  const trunk = MeshBuilder.CreateCylinder(
-    'pineSourceTrunk',
-    { diameter: 0.4, height: 4, tessellation: 8 },
-    scene
-  );
+function createMergedPine(scene: Scene): Mesh {
+  const trunk = MeshBuilder.CreateCylinder('_pt', { diameter: 0.4, height: 4, tessellation: 6 }, scene);
   trunk.position.y = 2;
+  const c1 = MeshBuilder.CreateCylinder('_pc1', { diameterTop: 0, diameterBottom: 4, height: 4, tessellation: 6 }, scene);
+  c1.position.y = 4.5;
+  const c2 = MeshBuilder.CreateCylinder('_pc2', { diameterTop: 0, diameterBottom: 3, height: 3.5, tessellation: 6 }, scene);
+  c2.position.y = 6.5;
+  const c3 = MeshBuilder.CreateCylinder('_pc3', { diameterTop: 0, diameterBottom: 2, height: 3, tessellation: 6 }, scene);
+  c3.position.y = 8.5;
+
   trunk.material = pineTrunkMat;
-  trunk.parent = parent;
+  c1.material = pineNeedleMat;
+  c2.material = pineNeedleMat;
+  c3.material = pineNeedleMat;
 
-  // Three cone layers for canopy
-  const coneBottom = MeshBuilder.CreateCylinder(
-    'pineSourceConeB',
-    { diameterTop: 0, diameterBottom: 4, height: 4, tessellation: 8 },
-    scene
-  );
-  coneBottom.position.y = 4.5;
-  coneBottom.material = pineNeedleMat;
-  coneBottom.parent = parent;
-
-  const coneMid = MeshBuilder.CreateCylinder(
-    'pineSourceConeM',
-    { diameterTop: 0, diameterBottom: 3, height: 3.5, tessellation: 8 },
-    scene
-  );
-  coneMid.position.y = 6.5;
-  coneMid.material = pineNeedleMat;
-  coneMid.parent = parent;
-
-  const coneTop = MeshBuilder.CreateCylinder(
-    'pineSourceConeT',
-    { diameterTop: 0, diameterBottom: 2, height: 3, tessellation: 8 },
-    scene
-  );
-  coneTop.position.y = 8.5;
-  coneTop.material = pineNeedleMat;
-  coneTop.parent = parent;
-
-  parent.isVisible = false;
-  return parent;
+  const merged = Mesh.MergeMeshes([trunk, c1, c2, c3], true, true, undefined, false, true);
+  if (!merged) throw new Error('Failed to merge pine');
+  merged.name = 'pineTree';
+  merged.material = pineNeedleMat;
+  merged.isVisible = true;
+  return merged;
 }
 
-function createDeadTreeSource(scene: Scene): Mesh {
-  const parent = new Mesh('deadTreeSource', scene);
-
-  // Main trunk - thicker, twisted look via slight scaling
-  const trunk = MeshBuilder.CreateCylinder(
-    'deadTreeTrunk',
-    { diameterTop: 0.2, diameterBottom: 0.6, height: 5, tessellation: 6 },
-    scene
-  );
+function createMergedDeadTree(scene: Scene): Mesh {
+  const trunk = MeshBuilder.CreateCylinder('_dt', { diameterTop: 0.2, diameterBottom: 0.6, height: 5, tessellation: 5 }, scene);
   trunk.position.y = 2.5;
+  const b1 = MeshBuilder.CreateCylinder('_db1', { diameterTop: 0.05, diameterBottom: 0.15, height: 2, tessellation: 5 }, scene);
+  b1.position.set(0.4, 3.5, 0);
+  b1.rotation.z = -0.8;
+  const b2 = MeshBuilder.CreateCylinder('_db2', { diameterTop: 0.04, diameterBottom: 0.12, height: 1.5, tessellation: 5 }, scene);
+  b2.position.set(-0.3, 4.0, 0.2);
+  b2.rotation.z = 0.6;
+
   trunk.material = deadTreeMat;
-  trunk.parent = parent;
+  b1.material = deadTreeMat;
+  b2.material = deadTreeMat;
 
-  // Broken branch stubs
-  const branch1 = MeshBuilder.CreateCylinder(
-    'deadBranch1',
-    { diameterTop: 0.05, diameterBottom: 0.15, height: 2, tessellation: 5 },
-    scene
-  );
-  branch1.position.set(0.4, 3.5, 0);
-  branch1.rotation.z = -0.8;
-  branch1.material = deadTreeMat;
-  branch1.parent = parent;
-
-  const branch2 = MeshBuilder.CreateCylinder(
-    'deadBranch2',
-    { diameterTop: 0.04, diameterBottom: 0.12, height: 1.5, tessellation: 5 },
-    scene
-  );
-  branch2.position.set(-0.3, 4.0, 0.2);
-  branch2.rotation.z = 0.6;
-  branch2.rotation.y = 1.2;
-  branch2.material = deadTreeMat;
-  branch2.parent = parent;
-
-  parent.isVisible = false;
-  return parent;
+  const merged = Mesh.MergeMeshes([trunk, b1, b2], true, true, undefined, false, true);
+  if (!merged) throw new Error('Failed to merge dead tree');
+  merged.name = 'deadTree';
+  merged.material = deadTreeMat;
+  merged.isVisible = true;
+  return merged;
 }
 
-function createBushSource(scene: Scene): Mesh {
-  const bush = MeshBuilder.CreateBox(
-    'bushSource',
-    { width: 1.5, height: 1, depth: 1.5 },
-    scene
-  );
-  bush.material = bushMat;
-  bush.isVisible = false;
-  return bush;
+function addThinInstances(
+  source: Mesh,
+  group: FoliageGroup,
+  count: number,
+  getHeightAt: (x: number, z: number) => number
+): void {
+  const matrices = new Float32Array(count * 16);
+  const tmpPos = new Vector3();
+  const tmpRot = new Quaternion();
+  const tmpScale = new Vector3();
+  const tmpMat = new Matrix();
+
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = Math.random() * group.area.radius;
+    const x = group.area.centerX + Math.cos(angle) * dist;
+    const z = group.area.centerZ + Math.sin(angle) * dist;
+    const y = getHeightAt(x, z);
+    const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
+    const rotY = Math.random() * Math.PI * 2;
+
+    tmpPos.set(x, y, z);
+    Quaternion.FromEulerAnglesToRef(0, rotY, 0, tmpRot);
+    tmpScale.set(scale, scale, scale);
+    Matrix.ComposeToRef(tmpScale, tmpRot, tmpPos, tmpMat);
+    tmpMat.copyToArray(matrices, i * 16);
+  }
+
+  source.thinInstanceSetBuffer('matrix', matrices, 16, false);
 }
 
-function createGrassSource(scene: Scene): Mesh {
-  const grass = MeshBuilder.CreatePlane(
-    'grassSource',
-    { width: 0.4, height: 0.8 },
-    scene
-  );
-  grass.material = grassMat;
-  grass.isVisible = false;
-  return grass;
-}
-
-/**
- * Create instanced foliage from manifest foliage groups.
- * Every placed object samples terrain height so it sits on the ground.
- */
 export function createFoliageFromManifest(
   foliageGroups: FoliageGroup[],
   scene: Scene,
@@ -163,7 +128,6 @@ export function createFoliageFromManifest(
 ): void {
   ensureMaterials(scene);
 
-  // Create source meshes lazily
   let pineSource: Mesh | null = null;
   let deadSource: Mesh | null = null;
   let bushSource: Mesh | null = null;
@@ -173,77 +137,55 @@ export function createFoliageFromManifest(
     const count = Math.max(1, Math.floor(group.count * quality.foliageDensity));
 
     if (group.type === 'tree_pine') {
-      if (!pineSource) pineSource = createPineTreeSource(scene);
-      spawnInstances(pineSource, group, count, scene, true, getHeightAt);
+      if (!pineSource) pineSource = createMergedPine(scene);
+      addThinInstances(pineSource, group, count, getHeightAt);
     } else if (group.type === 'tree_dead') {
-      if (!deadSource) deadSource = createDeadTreeSource(scene);
-      spawnInstances(deadSource, group, count, scene, true, getHeightAt);
+      if (!deadSource) deadSource = createMergedDeadTree(scene);
+      addThinInstances(deadSource, group, count, getHeightAt);
     } else if (group.type === 'bush') {
-      if (!bushSource) bushSource = createBushSource(scene);
-      spawnInstances(bushSource, group, count, scene, false, getHeightAt);
-    } else if (group.type === 'grass_tall' || group.type === 'grass_short') {
-      if (!grassSource) grassSource = createGrassSource(scene);
-      spawnGrass(grassSource, group, count, scene, getHeightAt);
-    }
-  }
-}
-
-function spawnInstances(
-  source: Mesh,
-  group: FoliageGroup,
-  count: number,
-  scene: Scene,
-  _isTree: boolean,
-  getHeightAt: (x: number, z: number) => number
-): void {
-  const parent = new TransformNode(`foliage_${group.id}`, scene);
-
-  for (let i = 0; i < count; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const dist = Math.random() * group.area.radius;
-    const x = group.area.centerX + Math.cos(angle) * dist;
-    const z = group.area.centerZ + Math.sin(angle) * dist;
-    const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
-
-    const y = getHeightAt(x, z);
-
-    // Clone the multi-mesh tree as a hierarchy
-    const clone = source.clone(`${group.id}_${i}`, parent);
-    if (clone) {
-      clone.position = new Vector3(x, y, z);
-      clone.scaling.setAll(scale);
-      clone.rotation.y = Math.random() * Math.PI * 2;
-      clone.isVisible = true;
-
-      // Make children visible
-      for (const child of clone.getChildMeshes()) {
-        child.isVisible = true;
+      if (!bushSource) {
+        bushSource = MeshBuilder.CreateBox('bush', { width: 1.5, height: 1, depth: 1.5 }, scene);
+        bushSource.material = bushMat;
       }
+      addThinInstances(bushSource, group, count, getHeightAt);
+    } else if (group.type === 'grass_tall' || group.type === 'grass_short') {
+      if (!grassSource) {
+        grassSource = MeshBuilder.CreatePlane('grass', { width: 0.4, height: 0.8 }, scene);
+        grassSource.material = grassMat;
+      }
+      addThinInstancesGrass(grassSource, group, count, getHeightAt);
     }
   }
 }
 
-function spawnGrass(
+function addThinInstancesGrass(
   source: Mesh,
   group: FoliageGroup,
   count: number,
-  scene: Scene,
   getHeightAt: (x: number, z: number) => number
 ): void {
+  const matrices = new Float32Array(count * 16);
+  const tmpPos = new Vector3();
+  const tmpRot = new Quaternion();
+  const tmpScale = new Vector3();
+  const tmpMat = new Matrix();
+
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
     const dist = Math.random() * group.area.radius;
     const x = group.area.centerX + Math.cos(angle) * dist;
     const z = group.area.centerZ + Math.sin(angle) * dist;
-    const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
-
     const y = getHeightAt(x, z);
+    const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
+    const rotY = Math.random() * Math.PI * 2;
+    const tiltX = (Math.random() - 0.5) * 0.3;
 
-    const instance = source.createInstance(`grass_${group.id}_${i}`);
-    instance.position = new Vector3(x, y + scale * 0.4, z);
-    instance.scaling.setAll(scale);
-    instance.rotation.y = Math.random() * Math.PI * 2;
-    // Billboard grass slightly for cheap volume effect
-    instance.rotation.x = (Math.random() - 0.5) * 0.3;
+    tmpPos.set(x, y + scale * 0.4, z);
+    Quaternion.FromEulerAnglesToRef(tiltX, rotY, 0, tmpRot);
+    tmpScale.set(scale, scale, scale);
+    Matrix.ComposeToRef(tmpScale, tmpRot, tmpPos, tmpMat);
+    tmpMat.copyToArray(matrices, i * 16);
   }
+
+  source.thinInstanceSetBuffer('matrix', matrices, 16, false);
 }

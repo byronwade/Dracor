@@ -81,7 +81,7 @@ export function SceneCanvas({ preset, className = "" }: SceneCanvasProps) {
       // ─── Match game client exactly ───
       scene.clearColor = new Color4(0.02, 0.015, 0.03, 1.0);
       scene.fogMode = Scene.FOGMODE_EXP2;
-      scene.fogDensity = 0.012;
+      scene.fogDensity = 0.009;
       scene.fogColor = new Color3(0.3, 0.32, 0.38);
       scene.ambientColor = new Color3(0.1, 0.1, 0.12);
 
@@ -108,7 +108,7 @@ export function SceneCanvas({ preset, className = "" }: SceneCanvasProps) {
         new Vector3(-0.6, -0.3, -0.75).normalize(),
         scene
       );
-      sun.intensity = 1.8;
+      sun.intensity = 2.2;
       sun.diffuse = new Color3(1.0, 0.7, 0.35);
 
       // ─── Terrain ───
@@ -177,8 +177,8 @@ export function SceneCanvas({ preset, className = "" }: SceneCanvasProps) {
       const horizonMat = new StandardMaterial("horizonMat", scene);
       horizonMat.diffuseColor = Color3.Black();
       horizonMat.specularColor = Color3.Black();
-      horizonMat.emissiveColor = new Color3(0.12, 0.06, 0.02);
-      horizonMat.alpha = 0.4;
+      horizonMat.emissiveColor = new Color3(0.18, 0.09, 0.03);
+      horizonMat.alpha = 0.5;
       horizonMat.disableLighting = true;
       horizonMat.backFaceCulling = false;
       horizonGlow.material = horizonMat;
@@ -186,7 +186,7 @@ export function SceneCanvas({ preset, className = "" }: SceneCanvasProps) {
 
       // ─── Pine trees ───
       const treeMat = new StandardMaterial("treeMat", scene);
-      treeMat.diffuseColor = new Color3(0.08, 0.15, 0.06);
+      treeMat.diffuseColor = new Color3(0.1, 0.2, 0.08);
       treeMat.specularColor = Color3.Black();
 
       const trunkMat = new StandardMaterial("trunkMat", scene);
@@ -265,7 +265,7 @@ export function SceneCanvas({ preset, className = "" }: SceneCanvasProps) {
         new Vector3(30, shrineY + 6, 50),
         scene
       );
-      shrineLight.intensity = 2.5;
+      shrineLight.intensity = 3.5;
       shrineLight.diffuse = new Color3(1.0, 0.55, 0.1);
       shrineLight.range = 25;
 
@@ -367,8 +367,8 @@ export function SceneCanvas({ preset, className = "" }: SceneCanvasProps) {
       pipeline.imageProcessingEnabled = true;
       pipeline.imageProcessing.toneMappingEnabled = true;
       pipeline.imageProcessing.toneMappingType = 1;
-      pipeline.imageProcessing.exposure = 1.0;
-      pipeline.imageProcessing.contrast = 1.05;
+      pipeline.imageProcessing.exposure = 1.4;
+      pipeline.imageProcessing.contrast = 1.15;
 
       pipeline.imageProcessing.vignetteEnabled = true;
       pipeline.imageProcessing.vignetteWeight = 1.8;

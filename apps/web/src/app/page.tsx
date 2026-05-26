@@ -51,8 +51,8 @@ export default function HomePage() {
       {/* Hero — live game render */}
       <section className="relative flex h-screen flex-col items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
-          <SceneCanvas preset="hero" className="opacity-40" />
-          <div className="absolute inset-0 bg-gradient-to-b from-surface/50 via-transparent to-surface" />
+          <SceneCanvas preset="hero" />
+          <div className="absolute inset-0 bg-gradient-to-b from-surface/80 via-surface/20 to-surface" />
         </div>
 
         <div className="relative z-10 text-center px-8">
@@ -91,7 +91,7 @@ export default function HomePage() {
       {/* Visual Break 1 — live road view */}
       <section className="relative h-[60vh] overflow-hidden border-y border-line-subtle">
         <SceneCanvas preset="road" />
-        <div className="absolute inset-0 bg-gradient-to-b from-surface/40 via-transparent to-surface/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-surface/30 via-transparent to-surface/30" />
       </section>
 
       {/* Pillars */}
@@ -123,7 +123,7 @@ export default function HomePage() {
       {/* Visual Break 2 — live shrine close-up */}
       <section className="relative h-[60vh] overflow-hidden border-y border-line-subtle">
         <SceneCanvas preset="shrine" />
-        <div className="absolute inset-0 bg-gradient-to-b from-surface/40 via-transparent to-surface/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-surface/30 via-transparent to-surface/30" />
       </section>
 
       {/* Final CTA */}

@@ -2,7 +2,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector3, Quaternion, Matrix } from '@babylonjs/core/Maths/math.vector';
 import '@babylonjs/core/Meshes/Builders/boxBuilder';
 
 import type { QualitySettings, ZoneManifest, RockGroup } from '../scenes/IronvaleOutskirtsScene';
@@ -74,20 +74,21 @@ function createRocksFromManifest(
   getHeightAt: (x: number, z: number) => number
 ): void {
   const rockMat = new StandardMaterial('rockMat', scene);
-  rockMat.diffuseColor = new Color3(0.2, 0.2, 0.22);
-  rockMat.specularColor = new Color3(0.05, 0.05, 0.05);
+  rockMat.diffuseColor = new Color3(0.15, 0.15, 0.16);
+  rockMat.specularColor = new Color3(0.03, 0.03, 0.03);
   rockMat.roughness = 1.0;
+
+  const sourceMesh = MeshBuilder.CreateBox('rock', { width: 2, height: 1.5, depth: 2 }, scene);
+  sourceMesh.material = rockMat;
+
+  const allMatrices: number[] = [];
+  const tmpPos = new Vector3();
+  const tmpRot = Quaternion.Identity();
+  const tmpScale = new Vector3();
+  const tmpMat = Matrix.Identity();
 
   for (const group of rocks) {
     const count = Math.max(1, Math.floor(group.count * quality.foliageDensity));
-
-    const sourceMesh = MeshBuilder.CreateBox(
-      `rock_source_${group.id}`,
-      { width: 2, height: 1.5, depth: 2 },
-      scene
-    );
-    sourceMesh.material = rockMat;
-    sourceMesh.isVisible = false;
 
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
@@ -95,20 +96,29 @@ function createRocksFromManifest(
       const x = group.area.centerX + Math.cos(angle) * dist;
       const z = group.area.centerZ + Math.sin(angle) * dist;
       const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
-
       const y = getHeightAt(x, z);
-      const instance = sourceMesh.createInstance(`${group.id}_${i}`);
-      instance.position = new Vector3(x, y + scale * 0.5, z);
-      instance.scaling.set(
+
+      tmpPos.set(x, y + scale * 0.5, z);
+      Quaternion.FromEulerAnglesToRef(
+        (Math.random() - 0.5) * 0.3,
+        Math.random() * Math.PI * 2,
+        (Math.random() - 0.5) * 0.3,
+        tmpRot
+      );
+      tmpScale.set(
         scale * (0.7 + Math.random() * 0.6),
         scale * (0.5 + Math.random() * 0.5),
         scale * (0.7 + Math.random() * 0.6)
       );
-      instance.rotation.set(
-        (Math.random() - 0.5) * 0.3,
-        Math.random() * Math.PI * 2,
-        (Math.random() - 0.5) * 0.3
-      );
+      Matrix.ComposeToRef(tmpScale, tmpRot, tmpPos, tmpMat);
+
+      const arr = new Array(16);
+      tmpMat.copyToArray(arr, 0);
+      for (let j = 0; j < 16; j++) allMatrices.push(arr[j]);
     }
+  }
+
+  if (allMatrices.length > 0) {
+    sourceMesh.thinInstanceSetBuffer('matrix', new Float32Array(allMatrices), 16, false);
   }
 }

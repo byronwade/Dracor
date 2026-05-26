@@ -28,12 +28,17 @@ export interface RaceAppearanceOptions {
   uniqueFeatureOptions: string[];
 }
 
+export type RaceRole = 'tank' | 'striker' | 'caster' | 'skirmisher' | 'support';
+
 export interface Race {
   id: RaceId;
   name: string;
   tagline: string;
   description: string;
   lore: string;
+  role: RaceRole;
+  difficulty: 1 | 2 | 3 | 4 | 5;
+  playstyle: string;
   traits: string[];
   baseStats: RaceBaseStats;
   abilities: RacialAbility[];

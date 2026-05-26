@@ -8,6 +8,9 @@ export const RACES: Race[] = [
     description:
       'Born from the last breath of dying dragons, the Dracor carry fragments of ancient draconic power in their blood. They walk as mortals but bear the unmistakable marks of their lineage.',
     lore: 'When the great dragons fell in the Sundering War, their death-breath crystallized into seeds of power that took root in mortal bloodlines. The Dracor are the inheritors of that legacy — neither fully dragon nor fully human, but something ancient and dangerous in between. Every Dracor walks the line between mortal will and ancient instinct.',
+    role: 'striker',
+    difficulty: 2,
+    playstyle: 'Balanced combatant who excels in sustained fights. High Spirit gives strong Dragon Memory synergy. Pairs well with any weapon.',
     traits: [
       'Ember eyes that glow faintly in darkness',
       'Scale markings along arms, neck, and spine',
@@ -61,6 +64,9 @@ export const RACES: Race[] = [
     description:
       'Descendants of the mountain clans who survived the Sundering by retreating deep underground. Generations of living beside volcanic forges have made them dense, powerful, and nearly unbreakable.',
     lore: 'When dragonfire rained from the sky, the mountain clans sealed themselves inside the Deepfurnace — a volcanic forge-city carved into living rock. Over centuries, the mineral-rich waters and geothermal heat reshaped them. Their bones grew dense as iron, their skin took on a metallic sheen, and their endurance became legendary. Now they emerge, blinking, into a world that moved on without them.',
+    role: 'tank',
+    difficulty: 1,
+    playstyle: 'Frontline wall. Absorb everything, die last. Low agility means slow positioning — commit to a spot and hold it.',
     traits: [
       'Metallic sheen to skin that deflects glancing blows',
       'Eyes like molten iron — orange-white and piercing',
@@ -114,6 +120,9 @@ export const RACES: Race[] = [
     description:
       'Spirits of the ancient forest given mortal form. The Sylvhari are living conduits between the natural world and civilization — graceful, deadly, and deeply attuned to the pulse of living things.',
     lore: 'Before the Sundering, the great forests were tended by pure spirits — formless guardians of root and branch. When dragonfire scorched the world, these spirits wove themselves into physical bodies to survive, becoming the Sylvhari. They remember being wind through leaves, rain on bark, moonlight through canopy. That memory makes them otherworldly, beautiful, and sometimes terrifyingly alien in their perspective.',
+    role: 'skirmisher',
+    difficulty: 3,
+    playstyle: 'Hit-and-fade assassin. Devastating burst damage with Thornstrike, then vanish with Nature\'s Veil. Fragile — positioning is survival.',
     traits: [
       'Luminescent patterns beneath translucent skin',
       'Hair that shifts color with the seasons',
