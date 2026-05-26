@@ -202,7 +202,7 @@ export class ChunkedTerrainManager {
     const renderSize = this._chunkSize + overlap * 2;
     const mesh = MeshBuilder.CreateGround(
       `terrain_${key}`,
-      { width: renderSize, height: renderSize, subdivisions: targetSubs, updatable: false },
+      { width: renderSize, height: renderSize, subdivisions: targetSubs, updatable: true },
       this.scene
     );
 
