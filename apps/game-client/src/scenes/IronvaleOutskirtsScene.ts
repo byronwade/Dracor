@@ -447,7 +447,7 @@ export function buildIronvaleOutskirtsScene(
   scene.fogColor = new Color3(0.3, 0.32, 0.38);
   scene.ambientColor = new Color3(0.1, 0.1, 0.12);
 
-  const dayNight = new DayNightCycle(scene, quality, 0.73);
+  const dayNight = new DayNightCycle(scene, quality, 0.38);
 
   const zoneResult = loadZoneFromManifest(IRONVALE_OUTSKIRTS, scene, quality);
 

@@ -71,11 +71,10 @@ export function createTerrainFromManifest(
 
   // Apply dark earth material
   const groundMat = new StandardMaterial('terrainMat', scene);
-  groundMat.diffuseColor = new Color3(0.12, 0.09, 0.07); // Dark brown earth
-  groundMat.specularColor = new Color3(0.02, 0.02, 0.02);
+  groundMat.diffuseColor = new Color3(0.3, 0.25, 0.18);
+  groundMat.specularColor = new Color3(0.04, 0.04, 0.03);
   groundMat.roughness = 1.0;
-  // Slight ambient color for moss feel
-  groundMat.ambientColor = new Color3(0.05, 0.08, 0.04);
+  groundMat.ambientColor = new Color3(0.12, 0.15, 0.08);
   ground.material = groundMat;
   ground.receiveShadows = true;
   ground.position = Vector3.Zero();

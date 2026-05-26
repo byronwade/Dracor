@@ -162,9 +162,9 @@ export class GameApp {
       onEnterWorld: () => { this.enterWorld(); },
       onSettings: () => { this.settingsPanel.open(); },
     });
-    this.mainMenu.show();
 
     this.applySettings(this.settings.get());
+    this.enterWorld();
   }
 
   private enterWorld(): void {
