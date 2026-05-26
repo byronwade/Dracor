@@ -647,78 +647,101 @@ function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId
 
   // --- Weapon in right hand ---
   if (weapon) {
-    const rightHandX = (shoulderW * S + 0.02 * S) * 1.12;
-    const rightHandY = shoulderY - armUp * S - armLow * S;
+    const handX = (shoulderW * S + 0.02 * S) * 1.12;
+    const handY = shoulderY - armUp * S - armLow * S;
+    const handZ = 0.02 * S;
 
     const weaponMat = new B.StandardMaterial("weaponMat", scene);
     weaponMat.specularColor = new B.Color3(0.6, 0.6, 0.6);
     weaponMat.specularPower = 8;
 
+    // Weapon anchor parented to root — angled outward so it's visible
+    const weaponAnchor = new B.TransformNode("weaponAnchor", scene);
+    weaponAnchor.position.set(handX, handY, handZ);
+    weaponAnchor.rotation.x = -0.15;
+    weaponAnchor.rotation.z = 0.2;
+    weaponAnchor.parent = root;
+
     if (weapon === "blade") {
-      weaponMat.diffuseColor = new B.Color3(0.6, 0.6, 0.65);
-      // Blade
+      weaponMat.diffuseColor = new B.Color3(0.65, 0.65, 0.7);
       const blade = B.MeshBuilder.CreateBox("blade", {
-        width: 0.025 * S, height: 0.55 * S, depth: 0.008 * S
+        width: 0.02 * S, height: 0.6 * S, depth: 0.006 * S
       }, scene);
-      blade.position.set(rightHandX, rightHandY + 0.28 * S, 0.03 * S);
+      blade.position.y = 0.32 * S;
       blade.material = weaponMat;
-      blade.parent = root;
-      // Guard
+      blade.parent = weaponAnchor;
+
       const guard = B.MeshBuilder.CreateBox("guard", {
-        width: 0.12 * S, height: 0.015 * S, depth: 0.025 * S
+        width: 0.14 * S, height: 0.012 * S, depth: 0.02 * S
       }, scene);
-      guard.position.set(rightHandX, rightHandY + 0.01 * S, 0.03 * S);
+      guard.position.y = 0.02 * S;
       guard.material = accentMat;
-      guard.parent = root;
-      // Grip
+      guard.parent = weaponAnchor;
+
       const grip = B.MeshBuilder.CreateCylinder("grip", {
-        diameter: 0.02 * S, height: 0.1 * S, tessellation: 8
+        diameter: 0.022 * S, height: 0.1 * S, tessellation: 8
       }, scene);
-      grip.position.set(rightHandX, rightHandY - 0.05 * S, 0.03 * S);
+      grip.position.y = -0.04 * S;
       grip.material = darkMat;
-      grip.parent = root;
+      grip.parent = weaponAnchor;
+
+      const pommel = B.MeshBuilder.CreateSphere("pommel", {
+        diameter: 0.03 * S, segments: 8
+      }, scene);
+      pommel.position.y = -0.09 * S;
+      pommel.material = accentMat;
+      pommel.parent = weaponAnchor;
     } else if (weapon === "bow") {
       weaponMat.diffuseColor = new B.Color3(0.4, 0.25, 0.12);
-      // Bow arc
+
+      // Held in left hand instead — more natural
+      const bowAnchor = new B.TransformNode("bowAnchor", scene);
+      bowAnchor.position.set(-handX, handY + 0.1 * S, handZ);
+      bowAnchor.parent = root;
+
       const bow = B.MeshBuilder.CreateTorus("bow", {
-        diameter: 0.45 * S, thickness: 0.018 * S, arc: 0.55, tessellation: 20
+        diameter: 0.5 * S, thickness: 0.016 * S, arc: 0.5, tessellation: 24
       }, scene);
-      bow.position.set(rightHandX + 0.05 * S, rightHandY + 0.15 * S, 0.06 * S);
-      bow.rotation.y = Math.PI / 2;
-      bow.rotation.z = 0.1;
+      bow.rotation.z = Math.PI / 2;
+      bow.rotation.x = Math.PI / 2;
       bow.material = weaponMat;
-      bow.parent = root;
-      // String
+      bow.parent = bowAnchor;
+
       const string = B.MeshBuilder.CreateCylinder("bowstring", {
-        diameter: 0.004 * S, height: 0.4 * S, tessellation: 4
+        diameter: 0.003 * S, height: 0.48 * S, tessellation: 4
       }, scene);
-      string.position.set(rightHandX + 0.05 * S, rightHandY + 0.15 * S, 0.06 * S);
+      string.rotation.z = Math.PI / 2;
       const stringMat = new B.StandardMaterial("stringMat", scene);
-      stringMat.diffuseColor = new B.Color3(0.8, 0.8, 0.75);
-      stringMat.emissiveColor = new B.Color3(0.1, 0.1, 0.1);
+      stringMat.diffuseColor = new B.Color3(0.85, 0.82, 0.75);
+      stringMat.emissiveColor = new B.Color3(0.08, 0.08, 0.08);
       string.material = stringMat;
-      string.parent = root;
+      string.parent = bowAnchor;
     } else if (weapon === "staff") {
       weaponMat.diffuseColor = new B.Color3(0.35, 0.22, 0.1);
-      // Staff pole
-      const staff = B.MeshBuilder.CreateCylinder("staff", {
-        diameterTop: 0.015 * S, diameterBottom: 0.025 * S, height: 1.1 * S, tessellation: 10
+
+      const staffAnchor = new B.TransformNode("staffAnchor", scene);
+      staffAnchor.position.set(handX, handY, handZ);
+      staffAnchor.rotation.z = 0.08;
+      staffAnchor.parent = root;
+
+      const pole = B.MeshBuilder.CreateCylinder("staff", {
+        diameterTop: 0.014 * S, diameterBottom: 0.024 * S, height: 1.3 * S, tessellation: 10
       }, scene);
-      staff.position.set(rightHandX, rightHandY + 0.55 * S, 0.03 * S);
-      staff.material = weaponMat;
-      staff.parent = root;
-      // Orb at top
+      pole.position.y = 0.65 * S;
+      pole.material = weaponMat;
+      pole.parent = staffAnchor;
+
       const orb = B.MeshBuilder.CreateSphere("staffOrb", {
-        diameter: 0.08 * S, segments: 16
+        diameter: 0.09 * S, segments: 16
       }, scene);
-      orb.position.set(rightHandX, rightHandY + 1.1 * S, 0.03 * S);
+      orb.position.y = 1.32 * S;
       const orbMat = new B.StandardMaterial("orbMat", scene);
       orbMat.diffuseColor = new B.Color3(0.1, 0.05, 0.15);
       orbMat.emissiveColor = new B.Color3(0.6, 0.3, 1.0);
       orbMat.alpha = 0.9;
       orb.material = orbMat;
-      orb.parent = root;
-      // Orb glow pulse
+      orb.parent = staffAnchor;
+
       const orbPulse = new B.Animation("orbPulse", "material.emissiveColor", 30,
         B.Animation.ANIMATIONTYPE_COLOR3, B.Animation.ANIMATIONLOOPMODE_CYCLE);
       orbPulse.setKeys([
@@ -728,6 +751,14 @@ function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId
       ]);
       orb.animations.push(orbPulse);
       scene.beginAnimation(orb, 0, 90, true);
+
+      // Staff base touches ground
+      const ferrule = B.MeshBuilder.CreateSphere("ferrule", {
+        diameter: 0.03 * S, segments: 8
+      }, scene);
+      ferrule.position.y = 0;
+      ferrule.material = accentMat;
+      ferrule.parent = staffAnchor;
     }
   }
 
