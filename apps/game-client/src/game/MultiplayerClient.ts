@@ -26,6 +26,19 @@ interface RemotePlayer {
 export type ChatHandler = (sender: string, content: string, isSystem: boolean) => void;
 export type PlayerCountHandler = (count: number) => void;
 
+export interface NetworkStats {
+  messagesSent: number;
+  messagesReceived: number;
+  sendRate: number;
+  receiveRate: number;
+  reconnectCount: number;
+  lastPingMs: number;
+  connectionUptime: number;
+}
+
+const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000];
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 export class MultiplayerClient {
   private room: Room | null = null;
   private remotePlayers = new Map<string, RemotePlayer>();
@@ -37,17 +50,50 @@ export class MultiplayerClient {
   private onPlayerCountChange: PlayerCountHandler | null = null;
   private assignedName: string | null = null;
 
+  private serverUrl: string | null = null;
+  private playerName: string | null = null;
+  private scene: Scene | null = null;
+  private intentionalDisconnect = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private visibilityHandler: (() => void) | null = null;
+
+  private totalMessagesSent = 0;
+  private totalMessagesReceived = 0;
+  private sentWindow: number[] = [];
+  private receivedWindow: number[] = [];
+  private reconnectCount = 0;
+  private connectedAt = 0;
+  private lastPingMs = 0;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+
   async connect(
     serverUrl: string,
     playerName: string,
     scene: Scene
   ): Promise<void> {
+    this.serverUrl = serverUrl;
+    this.playerName = playerName;
+    this.scene = scene;
+    this.intentionalDisconnect = false;
+    this.reconnectAttempts = 0;
+
+    this.setupVisibilityHandler();
+    await this.doConnect();
+  }
+
+  private async doConnect(): Promise<void> {
+    if (!this.serverUrl || !this.playerName || !this.scene) return;
+
     this.setConnectionState('connecting');
 
     try {
-      this.room = await connectToWorldRoom(serverUrl, playerName);
+      this.room = await connectToWorldRoom(this.serverUrl, this.playerName);
       this.setConnectionState('connected');
-      this.setupListeners(scene);
+      this.connectedAt = performance.now();
+      this.reconnectAttempts = 0;
+      this.setupListeners(this.scene);
+      this.startPingTracking();
       console.log(`[MP] Joined room "${this.room.name}" (session: ${this.room.sessionId})`);
     } catch (err) {
       this.setConnectionState('disconnected');
@@ -56,12 +102,111 @@ export class MultiplayerClient {
     }
   }
 
+  private async attemptReconnect(): Promise<void> {
+    if (this.intentionalDisconnect) return;
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.warn(`[MP] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`);
+      this.onChatMessage?.('', 'Connection lost. Refresh to reconnect.', true);
+      return;
+    }
+
+    const delay = RECONNECT_DELAYS[Math.min(this.reconnectAttempts, RECONNECT_DELAYS.length - 1)];
+    this.reconnectAttempts++;
+    this.reconnectCount++;
+
+    console.log(`[MP] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+    this.setConnectionState('connecting');
+    this.onChatMessage?.('', `Reconnecting... (attempt ${this.reconnectAttempts})`, true);
+
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      try {
+        await this.doConnect();
+        this.onChatMessage?.('', 'Reconnected.', true);
+      } catch {
+        this.setConnectionState('disconnected');
+        this.attemptReconnect();
+      }
+    }, delay);
+  }
+
+  private setupVisibilityHandler(): void {
+    if (this.visibilityHandler) return;
+
+    this.visibilityHandler = () => {
+      if (document.visibilityState === 'visible' && this.connectionState === 'disconnected' && !this.intentionalDisconnect) {
+        console.log('[MP] Tab became visible, checking connection...');
+        this.reconnectAttempts = 0;
+        this.attemptReconnect();
+      }
+    };
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+  }
+
+  private startPingTracking(): void {
+    this.stopPingTracking();
+    this.pingInterval = setInterval(() => {
+      if (!this.room || this.connectionState !== 'connected') return;
+      const start = performance.now();
+      try {
+        this.room.send('ping', { t: start });
+      } catch { /* ignore */ }
+    }, 5000);
+
+    if (this.room) {
+      this.room.onMessage('pong', (data: { t: number }) => {
+        if (data && typeof data.t === 'number') {
+          this.lastPingMs = Math.round(performance.now() - data.t);
+        }
+      });
+    }
+  }
+
+  private stopPingTracking(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+
+  private trackSend(): void {
+    this.totalMessagesSent++;
+    this.sentWindow.push(performance.now());
+  }
+
+  private trackReceive(): void {
+    this.totalMessagesReceived++;
+    this.receivedWindow.push(performance.now());
+  }
+
+  private computeRate(window: number[]): number {
+    const now = performance.now();
+    const cutoff = now - 1000;
+    while (window.length > 0 && window[0] < cutoff) window.shift();
+    return window.length;
+  }
+
+  getNetworkStats(): NetworkStats {
+    return {
+      messagesSent: this.totalMessagesSent,
+      messagesReceived: this.totalMessagesReceived,
+      sendRate: this.computeRate(this.sentWindow),
+      receiveRate: this.computeRate(this.receivedWindow),
+      reconnectCount: this.reconnectCount,
+      lastPingMs: this.lastPingMs,
+      connectionUptime: this.connectionState === 'connected'
+        ? Math.round((performance.now() - this.connectedAt) / 1000)
+        : 0,
+    };
+  }
+
   private setupListeners(scene: Scene): void {
     const room = this.room;
     if (!room) return;
     const sessionId = room.sessionId;
 
     room.state.players.onAdd((player: Record<string, unknown>, key: string) => {
+      this.trackReceive();
       if (key === sessionId) {
         this.assignedName = (player.name as string) || null;
         return;
@@ -72,6 +217,7 @@ export class MultiplayerClient {
 
       if (typeof (player as { onChange?: unknown }).onChange === 'function') {
         (player as { onChange: (cb: () => void) => void }).onChange(() => {
+          this.trackReceive();
           const rp = this.remotePlayers.get(key);
           if (rp) {
             rp.targetX = (player.x as number) ?? rp.targetX;
@@ -86,6 +232,7 @@ export class MultiplayerClient {
     });
 
     room.state.players.onRemove((_player: unknown, key: string) => {
+      this.trackReceive();
       this.removeRemotePlayer(key);
       this.emitPlayerCount();
     });
@@ -93,17 +240,15 @@ export class MultiplayerClient {
     if (room.state.messages) {
       (room.state.messages as { onAdd: (cb: (msg: Record<string, unknown>) => void) => void }).onAdd(
         (message: Record<string, unknown>) => {
+          this.trackReceive();
           const msgId = message.id as string;
           if (!msgId) return;
-
           if (this.seenMessageIds.has(msgId)) return;
           this.seenMessageIds.add(msgId);
 
           if (this.seenMessageIds.size > 200) {
             const entries = Array.from(this.seenMessageIds);
-            for (let i = 0; i < 100; i++) {
-              this.seenMessageIds.delete(entries[i]);
-            }
+            for (let i = 0; i < 100; i++) this.seenMessageIds.delete(entries[i]);
           }
 
           const senderId = (message.senderId as string) || '';
@@ -118,10 +263,19 @@ export class MultiplayerClient {
       );
     }
 
-    room.onLeave(() => {
-      this.setConnectionState('disconnected');
+    room.onLeave((code: number) => {
+      this.stopPingTracking();
+      console.log(`[MP] onLeave fired, code: ${code}`);
+
       for (const [key] of this.remotePlayers) {
         this.removeRemotePlayer(key);
+      }
+
+      if (!this.intentionalDisconnect) {
+        this.setConnectionState('disconnected');
+        this.attemptReconnect();
+      } else {
+        this.setConnectionState('disconnected');
       }
     });
   }
@@ -143,6 +297,7 @@ export class MultiplayerClient {
 
     try {
       this.room.send('input', msg);
+      this.trackSend();
     } catch (err) {
       console.warn('[MP] Failed to send input:', err);
     }
@@ -154,6 +309,7 @@ export class MultiplayerClient {
     const msg: ChatMessagePayload = { content };
     try {
       this.room.send('chat', msg);
+      this.trackSend();
     } catch (err) {
       console.warn('[MP] Failed to send chat:', err);
     }
@@ -161,7 +317,6 @@ export class MultiplayerClient {
 
   interpolateRemotePlayers(): void {
     const lerpFactor = 0.1;
-
     for (const [, rp] of this.remotePlayers) {
       const pos = rp.mesh.position;
       pos.x += (rp.targetX - pos.x) * lerpFactor;
@@ -208,6 +363,16 @@ export class MultiplayerClient {
   }
 
   disconnect(): void {
+    this.intentionalDisconnect = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.stopPingTracking();
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
     if (this.room) {
       try { this.room.leave(); } catch { /* ignore */ }
       this.room = null;
@@ -224,39 +389,19 @@ export class MultiplayerClient {
   }
 
   private addRemotePlayer(id: string, name: string, scene: Scene): void {
-    const body = MeshBuilder.CreateCylinder(
-      `rp_${id}`,
-      { diameter: 0.8, height: 1.6, tessellation: 16 },
-      scene
-    );
+    const body = MeshBuilder.CreateCylinder(`rp_${id}`, { diameter: 0.8, height: 1.6, tessellation: 16 }, scene);
     body.position = new Vector3(0, 0.8, 0);
-
     const mat = new StandardMaterial(`rpMat_${id}`, scene);
     mat.diffuseColor = new Color3(0.3, 0.4, 0.6);
     mat.specularColor = new Color3(0.1, 0.1, 0.2);
     mat.emissiveColor = new Color3(0.02, 0.03, 0.08);
     body.material = mat;
-
-    const head = MeshBuilder.CreateSphere(
-      `rpHead_${id}`,
-      { diameter: 0.6, segments: 12 },
-      scene
-    );
+    const head = MeshBuilder.CreateSphere(`rpHead_${id}`, { diameter: 0.6, segments: 12 }, scene);
     head.position = new Vector3(0, 1.0, 0);
     head.parent = body;
     head.material = mat;
-
     const { label, texture } = this.createNameLabel(id, name, body, scene);
-
-    this.remotePlayers.set(id, {
-      mesh: body,
-      label,
-      labelTexture: texture,
-      targetX: 0,
-      targetY: 0,
-      targetZ: 0,
-      targetRotY: 0,
-    });
+    this.remotePlayers.set(id, { mesh: body, label, labelTexture: texture, targetX: 0, targetY: 0, targetZ: 0, targetRotY: 0 });
   }
 
   private removeRemotePlayer(id: string): void {
@@ -269,29 +414,13 @@ export class MultiplayerClient {
     }
   }
 
-  private createNameLabel(
-    id: string,
-    name: string,
-    parentMesh: Mesh,
-    scene: Scene
-  ): { label: Mesh; texture: DynamicTexture } {
-    const labelPlane = MeshBuilder.CreatePlane(
-      `rpLabel_${id}`,
-      { width: 2, height: 0.4 },
-      scene
-    );
+  private createNameLabel(id: string, name: string, parentMesh: Mesh, scene: Scene): { label: Mesh; texture: DynamicTexture } {
+    const labelPlane = MeshBuilder.CreatePlane(`rpLabel_${id}`, { width: 2, height: 0.4 }, scene);
     labelPlane.position = new Vector3(0, 1.8, 0);
     labelPlane.parent = parentMesh;
     labelPlane.billboardMode = Mesh.BILLBOARDMODE_ALL;
-
-    const texture = new DynamicTexture(
-      `rpLabelTex_${id}`,
-      { width: 256, height: 64 },
-      scene,
-      false
-    );
+    const texture = new DynamicTexture(`rpLabelTex_${id}`, { width: 256, height: 64 }, scene, false);
     texture.hasAlpha = true;
-
     const ctx = texture.getContext() as unknown as CanvasRenderingContext2D;
     ctx.clearRect(0, 0, 256, 64);
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
@@ -304,7 +433,6 @@ export class MultiplayerClient {
     ctx.textBaseline = 'middle';
     ctx.fillText(name, 128, 32);
     texture.update();
-
     const labelMat = new StandardMaterial(`rpLabelMat_${id}`, scene);
     labelMat.diffuseTexture = texture;
     labelMat.emissiveTexture = texture;
@@ -312,7 +440,6 @@ export class MultiplayerClient {
     labelMat.disableLighting = true;
     labelMat.backFaceCulling = false;
     labelPlane.material = labelMat;
-
     return { label: labelPlane, texture };
   }
 

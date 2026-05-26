@@ -16,8 +16,7 @@ import { MultiplayerClient } from './MultiplayerClient';
 import { ChatController } from './ChatController';
 import { GameLoop } from './GameLoop';
 import { createGameHud, type GameHud } from '../ui/createGameHud';
-import { createPerformancePanel, type PerformancePanel } from '../ui/createPerformancePanel';
-import { createConnectionStatus, type ConnectionStatusUI } from '../ui/createConnectionStatus';
+import { createDevPanel, type DevPanel } from '../ui/createDevPanel';
 import { createMinimap, type Minimap } from '../ui/createMinimap';
 
 export class GameApp {
@@ -31,8 +30,7 @@ export class GameApp {
   private chatController!: ChatController;
   private gameLoop!: GameLoop;
   private hud!: GameHud;
-  private perfPanel!: PerformancePanel;
-  private connectionUI!: ConnectionStatusUI;
+  private devPanel!: DevPanel;
   private minimap!: Minimap;
   private playerName: string;
 
@@ -78,9 +76,8 @@ export class GameApp {
     this.hud.setZoneName('Ironvale Outskirts');
     this.hud.setHealth(100, 100);
 
-    this.perfPanel = createPerformancePanel(this.engine, this.scene, this.quality);
-    this.connectionUI = createConnectionStatus();
-    this.connectionUI.setQualityTier(this.quality.tier);
+    this.devPanel = createDevPanel(this.engine, this.scene, this.quality);
+    this.devPanel.setQualityTier(this.quality.tier);
     this.minimap = createMinimap();
 
     this.chatController = new ChatController();
@@ -88,23 +85,12 @@ export class GameApp {
     this.multiplayerClient = new MultiplayerClient();
     this.playerController.setMultiplayerClient(this.multiplayerClient);
 
-    this.multiplayerClient.onConnectionStateChange((state) => {
-      this.connectionUI.setState(state);
-      if (state === 'connected') {
-        this.connectionUI.setRoomInfo('world_room', this.multiplayerClient.getPlayerCount());
-      }
-    });
-
     this.multiplayerClient.onChat((sender, content, isSystem) => {
       if (isSystem) {
         this.chatController.addSystemMessage(content);
       } else {
         this.chatController.addMessage(sender, content);
       }
-    });
-
-    this.multiplayerClient.onPlayerCount((count) => {
-      this.connectionUI.setRoomInfo('world_room', count);
     });
 
     this.chatController.onSend((content) => {
@@ -127,7 +113,13 @@ export class GameApp {
     const input = this.inputController.getInput();
     this.playerController.update(input, dt);
     this.multiplayerClient.interpolateRemotePlayers();
-    this.perfPanel.update();
+
+    this.devPanel.update({
+      connectionState: this.multiplayerClient.getConnectionState(),
+      networkStats: this.multiplayerClient.getNetworkStats(),
+      playerCount: this.multiplayerClient.getPlayerCount(),
+      roomName: 'world_room',
+    });
 
     const pos = this.playerController.getPosition();
     const yaw = this.playerController.getYaw();
@@ -156,15 +148,9 @@ export class GameApp {
 
   private async detectCapabilities(): Promise<RendererCapabilities> {
     const caps: RendererCapabilities = {
-      webgpu: false,
-      webgl2: false,
-      webgl1: false,
-      maxTextureSize: 0,
-      maxDrawBuffers: 0,
-      floatTextures: false,
-      instancedArrays: false,
-      deviceTier: 'low',
-      estimatedVRAM: 0,
+      webgpu: false, webgl2: false, webgl1: false,
+      maxTextureSize: 0, maxDrawBuffers: 0, floatTextures: false,
+      instancedArrays: false, deviceTier: 'low', estimatedVRAM: 0,
     };
 
     if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
@@ -180,9 +166,7 @@ export class GameApp {
           caps.estimatedVRAM = 2048;
           caps.deviceTier = 'high';
         }
-      } catch {
-        // WebGPU not available
-      }
+      } catch { /* WebGPU not available */ }
     }
 
     if (!caps.webgpu || caps.maxTextureSize === 0) {
@@ -195,15 +179,10 @@ export class GameApp {
         caps.floatTextures = gl2.getExtension('EXT_color_buffer_float') !== null;
         caps.instancedArrays = true;
         caps.estimatedVRAM = 1024;
-
-        if (caps.floatTextures && caps.maxTextureSize >= 8192) {
-          caps.deviceTier = 'high';
-        } else if (caps.maxTextureSize >= 4096) {
-          caps.deviceTier = 'mid';
-        }
-
-        const loseCtx = gl2.getExtension('WEBGL_lose_context');
-        if (loseCtx) loseCtx.loseContext();
+        if (caps.floatTextures && caps.maxTextureSize >= 8192) caps.deviceTier = 'high';
+        else if (caps.maxTextureSize >= 4096) caps.deviceTier = 'mid';
+        const lc = gl2.getExtension('WEBGL_lose_context');
+        if (lc) lc.loseContext();
       } else {
         const gl1 = testCanvas.getContext('webgl');
         if (gl1) {
@@ -213,14 +192,12 @@ export class GameApp {
           caps.instancedArrays = gl1.getExtension('ANGLE_instanced_arrays') !== null;
           caps.estimatedVRAM = 512;
           caps.deviceTier = 'low';
-
-          const loseCtx = gl1.getExtension('WEBGL_lose_context');
-          if (loseCtx) loseCtx.loseContext();
+          const lc = gl1.getExtension('WEBGL_lose_context');
+          if (lc) lc.loseContext();
         }
       }
       testCanvas.remove();
     }
-
     return caps;
   }
 
@@ -231,9 +208,7 @@ export class GameApp {
     return ENV.defaultPlayerName;
   }
 
-  private handleResize = (): void => {
-    this.engine.resize();
-  };
+  private handleResize = (): void => { this.engine.resize(); };
 
   dispose(): void {
     window.removeEventListener('resize', this.handleResize);
@@ -244,8 +219,7 @@ export class GameApp {
     this.playerController.dispose();
     this.chatController.dispose();
     this.hud.dispose();
-    this.perfPanel.dispose();
-    this.connectionUI.dispose();
+    this.devPanel.dispose();
     this.minimap.dispose();
     this.scene.dispose();
     this.engine.dispose();

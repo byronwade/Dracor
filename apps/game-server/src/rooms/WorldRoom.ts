@@ -124,6 +124,10 @@ export class WorldRoom extends Room<WorldState> {
       this.addChatMessage(client.sessionId, player.name, content);
     });
 
+    this.onMessage("ping", (client: Client, data: any) => {
+      client.send("pong", { t: data?.t ?? 0 });
+    });
+
     logger.info("WorldRoom created");
   }
 
