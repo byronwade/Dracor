@@ -6,7 +6,7 @@ export const IRONVALE_BIOMES: BiomeDefinition[] = [
     name: 'Dark Pine Frontier',
     groundColor: [0.18, 0.14, 0.1],
     groundRoughness: 0.85,
-    foliageTypes: ['tree_pine', 'tree_dead', 'bush', 'fern'],
+    foliageTypes: ['tree_pine', 'tree_dead', 'tree_broadleaf', 'bush', 'fern'],
     rockTypes: ['boulder_large', 'boulder_medium', 'stone_cluster'],
     ambientParticles: 'dust_motes',
     description:
