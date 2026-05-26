@@ -58,12 +58,12 @@ export default function HomePage() {
 
         <div className="relative z-10 text-center px-8">
           <h1
-            className="text-hero font-extrabold uppercase tracking-monument text-content-primary mb-6"
+            className="font-display text-hero font-extrabold uppercase tracking-monument text-content-primary mb-6"
             style={{ textIndent: "0.3em" }}
           >
             DRACOR
           </h1>
-          <p className="text-sm sm:text-base font-normal uppercase tracking-subtitle text-content-muted mb-12">
+          <p className="font-display text-sm sm:text-base font-normal uppercase tracking-subtitle text-content-muted mb-12">
             Awaken the Dragon Memory
           </p>
           <Link href="/play" className="cta-outline">
@@ -115,7 +115,7 @@ export default function HomePage() {
               <span className="text-[11px] font-semibold tracking-label text-ember mb-4 block">
                 {pillar.number}
               </span>
-              <h3 className="text-lg font-semibold text-content-primary mb-3 tracking-wide">
+              <h3 className="font-display text-lg font-semibold text-content-primary mb-3 tracking-wide">
                 {pillar.title}
               </h3>
               <p className="text-sm leading-relaxed text-content-muted">
@@ -139,7 +139,7 @@ export default function HomePage() {
 
       {/* Final CTA */}
       <section className="py-32 sm:py-40 text-center px-8">
-        <h2 className="text-section font-bold uppercase tracking-headline text-content-primary mb-6">
+        <h2 className="font-display text-section font-bold uppercase tracking-headline text-content-primary mb-6">
           Walk the First Road
         </h2>
         <p className="text-[15px] text-content-muted mb-12 tracking-wide">

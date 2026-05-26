@@ -99,7 +99,8 @@ export class GameApp {
 
     this.cameraController = new CameraController(
       this.scene,
-      this.playerController.getMesh()
+      this.playerController.getMesh(),
+      this.sceneResult.getHeightAt
     );
 
     this.hud = createGameHud();
@@ -176,8 +177,11 @@ export class GameApp {
     if (!this.worldEntered) return;
 
     const menuOpen = this.pauseMenu.isOpen() || this.settingsPanel.isOpen();
+    const mouse = this.inputController.consumeMouse();
 
     if (!menuOpen) {
+      this.cameraController.update(mouse, dt);
+      this.playerController.setCameraYaw(this.cameraController.getCameraYaw());
       const input = this.inputController.getInput();
       this.playerController.update(input, dt);
     }

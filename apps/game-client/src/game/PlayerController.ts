@@ -10,18 +10,25 @@ import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import type { InputState } from './InputController';
 import type { MultiplayerClient } from './MultiplayerClient';
 
-// ─── Character Motor Constants ───
-const MOVE_SPEED = 5.0;
+const WALK_SPEED = 5.0;
 const SPRINT_MULTIPLIER = 1.8;
+const ACCELERATION = 35.0;
+const DECELERATION = 25.0;
 const GRAVITY = -20.0;
 const JUMP_VELOCITY = 8.0;
 const GROUND_SNAP_THRESHOLD = 0.5;
-const NETWORK_SEND_INTERVAL = 1000 / 20; // 20Hz
+const YAW_TURN_SPEED = 12.0;
+const MESH_SMOOTH_FACTOR = 0.18;
+const NETWORK_SEND_INTERVAL = 1000 / 20;
 
-/**
- * Local character motor: position, velocity, gravity, ground snap.
- */
-interface CharacterMotorState {
+function lerpAngle(from: number, to: number, t: number): number {
+  let diff = to - from;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return from + diff * t;
+}
+
+interface MotorState {
   x: number;
   y: number;
   z: number;
@@ -29,18 +36,20 @@ interface CharacterMotorState {
   vy: number;
   vz: number;
   yaw: number;
+  visualYaw: number;
   grounded: boolean;
 }
 
-/**
- * Owns the local player mesh and runs the character motor each frame.
- */
 export class PlayerController {
   private mesh: Mesh;
-  private motor: CharacterMotorState;
+  private motor: MotorState;
   private getHeightAt: (x: number, z: number) => number;
   private multiplayer: MultiplayerClient | null = null;
   private lastNetworkSend = 0;
+  private cameraYaw = Math.PI;
+  private meshX: number;
+  private meshY: number;
+  private meshZ: number;
 
   constructor(
     scene: Scene,
@@ -51,7 +60,6 @@ export class PlayerController {
   ) {
     this.getHeightAt = getHeightAt;
 
-    // Create local player mesh (ember-orange capsule)
     const body = MeshBuilder.CreateCylinder(
       'localPlayer',
       { diameter: 0.8, height: 1.6, tessellation: 16 },
@@ -64,7 +72,6 @@ export class PlayerController {
     mat.emissiveColor = new Color3(0.15, 0.05, 0.0);
     body.material = mat;
 
-    // Head sphere
     const head = MeshBuilder.CreateSphere(
       'localPlayerHead',
       { diameter: 0.6, segments: 12 },
@@ -76,7 +83,6 @@ export class PlayerController {
 
     this.mesh = body;
 
-    // Initialize motor state
     const groundY = getHeightAt(spawnX, spawnZ);
     this.motor = {
       x: spawnX,
@@ -86,14 +92,22 @@ export class PlayerController {
       vy: 0,
       vz: 0,
       yaw: 0,
+      visualYaw: 0,
       grounded: true,
     };
 
-    this.syncMeshToMotor();
+    this.meshX = spawnX;
+    this.meshY = groundY + 0.8;
+    this.meshZ = spawnZ;
+    this.syncMeshToMotor(1);
   }
 
   setMultiplayerClient(client: MultiplayerClient): void {
     this.multiplayer = client;
+  }
+
+  setCameraYaw(yaw: number): void {
+    this.cameraYaw = yaw;
   }
 
   getMesh(): Mesh {
@@ -108,39 +122,60 @@ export class PlayerController {
     return this.motor.yaw;
   }
 
-  /**
-   * Run the character motor for one frame.
-   */
   update(input: InputState, dt: number): void {
     this.applyInput(input, dt);
     this.applyPhysics(dt);
     this.groundSnap();
-    this.syncMeshToMotor();
+    this.syncMeshToMotor(dt);
     this.maybeSendNetwork(input, dt);
   }
 
-  private applyInput(input: InputState, _dt: number): void {
-    // Calculate desired velocity from input
+  private applyInput(input: InputState, dt: number): void {
     let moveX = input.moveX;
     let moveZ = input.moveZ;
 
-    // Normalize diagonal
-    const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
-    if (length > 0) {
-      moveX /= length;
-      moveZ /= length;
+    const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+    if (len > 0) {
+      moveX /= len;
+      moveZ /= len;
     }
 
-    const speed = input.sprint ? MOVE_SPEED * SPRINT_MULTIPLIER : MOVE_SPEED;
-    this.motor.vx = moveX * speed;
-    this.motor.vz = moveZ * speed;
+    const camAngle = this.cameraYaw + Math.PI;
+    const sinCam = Math.sin(camAngle);
+    const cosCam = Math.cos(camAngle);
 
-    // Update yaw if moving
-    if (length > 0) {
-      this.motor.yaw = Math.atan2(moveX, moveZ);
+    const worldX = moveX * cosCam + moveZ * sinCam;
+    const worldZ = -moveX * sinCam + moveZ * cosCam;
+
+    const maxSpeed = input.sprint ? WALK_SPEED * SPRINT_MULTIPLIER : WALK_SPEED;
+    const desiredVx = worldX * maxSpeed;
+    const desiredVz = worldZ * maxSpeed;
+
+    const hasInput = len > 0;
+
+    if (hasInput) {
+      const accel = ACCELERATION * dt;
+      this.motor.vx += (desiredVx - this.motor.vx) * Math.min(1, accel);
+      this.motor.vz += (desiredVz - this.motor.vz) * Math.min(1, accel);
+
+      const targetYaw = Math.atan2(worldX, worldZ);
+      this.motor.yaw = lerpAngle(this.motor.yaw, targetYaw, Math.min(1, YAW_TURN_SPEED * dt));
+    } else {
+      const decel = DECELERATION * dt;
+      this.motor.vx *= Math.max(0, 1 - decel);
+      this.motor.vz *= Math.max(0, 1 - decel);
+
+      if (Math.abs(this.motor.vx) < 0.01) this.motor.vx = 0;
+      if (Math.abs(this.motor.vz) < 0.01) this.motor.vz = 0;
     }
 
-    // Jump
+    const currentSpeed = Math.sqrt(this.motor.vx * this.motor.vx + this.motor.vz * this.motor.vz);
+    if (currentSpeed > maxSpeed) {
+      const scale = maxSpeed / currentSpeed;
+      this.motor.vx *= scale;
+      this.motor.vz *= scale;
+    }
+
     if (input.jump && this.motor.grounded) {
       this.motor.vy = JUMP_VELOCITY;
       this.motor.grounded = false;
@@ -148,12 +183,10 @@ export class PlayerController {
   }
 
   private applyPhysics(dt: number): void {
-    // Apply gravity
     if (!this.motor.grounded) {
       this.motor.vy += GRAVITY * dt;
     }
 
-    // Integrate position
     this.motor.x += this.motor.vx * dt;
     this.motor.y += this.motor.vy * dt;
     this.motor.z += this.motor.vz * dt;
@@ -168,7 +201,6 @@ export class PlayerController {
         this.motor.vy = 0;
         this.motor.grounded = true;
       } else if (this.motor.vy <= 0) {
-        // Falling or stationary near ground
         this.motor.y = groundY;
         this.motor.vy = 0;
         this.motor.grounded = true;
@@ -178,9 +210,21 @@ export class PlayerController {
     }
   }
 
-  private syncMeshToMotor(): void {
-    this.mesh.position.set(this.motor.x, this.motor.y + 0.8, this.motor.z);
-    this.mesh.rotation.y = this.motor.yaw;
+  private syncMeshToMotor(dt: number): void {
+    const t = 1 - Math.pow(1 - MESH_SMOOTH_FACTOR, dt * 60);
+
+    const targetX = this.motor.x;
+    const targetY = this.motor.y + 0.8;
+    const targetZ = this.motor.z;
+
+    this.meshX += (targetX - this.meshX) * t;
+    this.meshY += (targetY - this.meshY) * t;
+    this.meshZ += (targetZ - this.meshZ) * t;
+
+    this.mesh.position.set(this.meshX, this.meshY, this.meshZ);
+
+    this.motor.visualYaw = lerpAngle(this.motor.visualYaw, this.motor.yaw, Math.min(1, YAW_TURN_SPEED * dt));
+    this.mesh.rotation.y = this.motor.visualYaw;
   }
 
   private maybeSendNetwork(input: InputState, dt: number): void {
