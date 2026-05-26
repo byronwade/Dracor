@@ -192,12 +192,11 @@ export class PlayerController {
       moveZ /= len;
     }
 
-    const camAngle = this.cameraYaw + Math.PI;
-    const sinCam = Math.sin(camAngle);
-    const cosCam = Math.cos(camAngle);
+    const sinCam = Math.sin(this.cameraYaw);
+    const cosCam = Math.cos(this.cameraYaw);
 
-    const worldX = moveX * cosCam + moveZ * sinCam;
-    const worldZ = -moveX * sinCam + moveZ * cosCam;
+    const worldX = moveX * cosCam - moveZ * sinCam;
+    const worldZ = moveX * sinCam + moveZ * cosCam;
 
     const baseSpeed = input.sprint ? WALK_SPEED * SPRINT_MULTIPLIER : WALK_SPEED;
     const maxSpeed = baseSpeed * this.motor.slopeMultiplier;
