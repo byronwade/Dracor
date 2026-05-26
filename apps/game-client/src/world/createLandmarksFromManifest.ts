@@ -12,30 +12,36 @@ import type { LandmarkDefinition } from '../scenes/IronvaleOutskirtsScene';
 
 /**
  * Create non-shrine landmarks: ruined gate, old bridge, etc.
+ * Samples terrain height so landmarks sit on the ground.
  */
 export function createLandmarksFromManifest(
   landmark: LandmarkDefinition,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): Mesh {
   if (landmark.type === 'gate') {
-    return createRuinedGate(landmark, scene);
+    return createRuinedGate(landmark, scene, getHeightAt);
   }
   if (landmark.type === 'bridge') {
-    return createOldBridge(landmark, scene);
+    return createOldBridge(landmark, scene, getHeightAt);
   }
 
   // Generic fallback: a simple marker post
-  return createGenericLandmark(landmark, scene);
+  return createGenericLandmark(landmark, scene, getHeightAt);
 }
 
 function createRuinedGate(
   landmark: LandmarkDefinition,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): Mesh {
   const parent = new TransformNode(`gate_${landmark.id}`, scene) as unknown as Mesh;
   const pos = landmark.position;
   const rotY = ((landmark.rotation ?? 0) * Math.PI) / 180;
   const scale = landmark.scale ?? 1.0;
+
+  // Single terrain sample at the gate center
+  const baseY = getHeightAt(pos.x, pos.z);
 
   const stoneMat = new StandardMaterial('gateStone', scene);
   stoneMat.diffuseColor = new Color3(0.18, 0.17, 0.16);
@@ -55,7 +61,7 @@ function createRuinedGate(
   );
   pillarLeft.position = new Vector3(
     pos.x - Math.cos(rotY) * 2.5,
-    pos.y + 3 * scale,
+    baseY + 3 * scale,
     pos.z - Math.sin(rotY) * 2.5
   );
   pillarLeft.rotation.y = rotY;
@@ -70,7 +76,7 @@ function createRuinedGate(
   );
   pillarRight.position = new Vector3(
     pos.x + Math.cos(rotY) * 2.5,
-    pos.y + 1.5 * scale,
+    baseY + 1.5 * scale,
     pos.z + Math.sin(rotY) * 2.5
   );
   pillarRight.rotation.y = rotY;
@@ -86,7 +92,7 @@ function createRuinedGate(
   );
   lintel.position = new Vector3(
     pos.x - Math.cos(rotY) * 1.0,
-    pos.y + 5.8 * scale,
+    baseY + 5.8 * scale,
     pos.z - Math.sin(rotY) * 1.0
   );
   lintel.rotation.y = rotY;
@@ -110,7 +116,7 @@ function createRuinedGate(
     const offsetZ = (Math.random() - 0.5) * 3;
     rubble.position = new Vector3(
       pos.x + Math.cos(rotY) * 2.5 + offsetX,
-      pos.y + rubbleSize * 0.25 * scale,
+      baseY + rubbleSize * 0.25 * scale + 0.1,
       pos.z + Math.sin(rotY) * 2.5 + offsetZ
     );
     rubble.rotation.set(
@@ -127,12 +133,23 @@ function createRuinedGate(
 
 function createOldBridge(
   landmark: LandmarkDefinition,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): Mesh {
   const parent = new TransformNode(`bridge_${landmark.id}`, scene) as unknown as Mesh;
   const pos = landmark.position;
   const rotY = ((landmark.rotation ?? 0) * Math.PI) / 180;
   const scale = landmark.scale ?? 1.0;
+
+  // Sample terrain height at both ends of the bridge and average them
+  const halfLength = 4 * scale; // bridge deck depth is 8 * scale
+  const end1X = pos.x + Math.sin(rotY) * halfLength;
+  const end1Z = pos.z + Math.cos(rotY) * halfLength;
+  const end2X = pos.x - Math.sin(rotY) * halfLength;
+  const end2Z = pos.z - Math.cos(rotY) * halfLength;
+  const h1 = getHeightAt(end1X, end1Z);
+  const h2 = getHeightAt(end2X, end2Z);
+  const baseY = (h1 + h2) * 0.5;
 
   const bridgeMat = new StandardMaterial('bridgeStone', scene);
   bridgeMat.diffuseColor = new Color3(0.2, 0.19, 0.17);
@@ -146,7 +163,7 @@ function createOldBridge(
     { width: 4 * scale, height: 0.4 * scale, depth: 8 * scale },
     scene
   );
-  deck.position = new Vector3(pos.x, pos.y + 0.2 * scale, pos.z);
+  deck.position = new Vector3(pos.x, baseY + 0.2 * scale, pos.z);
   deck.rotation.y = rotY;
   deck.material = bridgeMat;
   deck.parent = parent;
@@ -166,7 +183,7 @@ function createOldBridge(
     const offset = i * 3;
     support.position = new Vector3(
       pos.x + Math.sin(rotY) * offset,
-      pos.y - 1.0 * scale,
+      baseY - 1.0 * scale,
       pos.z + Math.cos(rotY) * offset
     );
     support.material = supportMat;
@@ -193,7 +210,7 @@ function createOldBridge(
     const offsetSide = (Math.random() - 0.5) * 3;
     moss.position = new Vector3(
       pos.x + Math.sin(rotY) * offsetForward + Math.cos(rotY) * offsetSide,
-      pos.y + 0.42 * scale,
+      baseY + 0.42 * scale,
       pos.z + Math.cos(rotY) * offsetForward - Math.sin(rotY) * offsetSide
     );
     moss.rotation.y = Math.random() * Math.PI;
@@ -206,10 +223,13 @@ function createOldBridge(
 
 function createGenericLandmark(
   landmark: LandmarkDefinition,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): Mesh {
   const scale = landmark.scale ?? 1.0;
   const pos = landmark.position;
+
+  const baseY = getHeightAt(pos.x, pos.z);
 
   const mat = new StandardMaterial(`landmark_${landmark.id}_mat`, scene);
   mat.diffuseColor = new Color3(0.2, 0.18, 0.16);
@@ -220,7 +240,7 @@ function createGenericLandmark(
     { diameter: 0.5 * scale, height: 2 * scale, tessellation: 8 },
     scene
   );
-  marker.position = new Vector3(pos.x, pos.y + scale, pos.z);
+  marker.position = new Vector3(pos.x, baseY + scale, pos.z);
   marker.material = mat;
 
   return marker;

@@ -80,7 +80,7 @@ export function createTerrainFromManifest(
   ground.receiveShadows = true;
   ground.position = Vector3.Zero();
 
-  // Height query function for character motor
+  // Height query function for character motor and world builders
   const getHeightAt = (x: number, z: number): number => {
     return proceduralHeight(x, z, terrain.heightScale);
   };

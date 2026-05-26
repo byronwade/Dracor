@@ -15,44 +15,48 @@ import { createSkyAndAtmosphere } from './createSkyAndAtmosphere';
 import { createWater } from './createWater';
 import { createDistantMountains } from './createDistantMountains';
 
+export type HeightSampler = (x: number, z: number) => number;
+
 export interface ZoneLoadResult {
   terrain: TerrainResult;
 }
 
 /**
  * Load a complete zone from its manifest data, creating all world geometry.
+ * The terrain height sampler is passed to every builder so objects sit on the ground.
  */
 export function loadZoneFromManifest(
   manifest: ZoneManifest,
   scene: Scene,
   quality: QualitySettings
 ): ZoneLoadResult {
-  // Create terrain
+  // Create terrain first — we need getHeightAt for all other builders
   const terrain = createTerrainFromManifest(manifest.terrain, scene, quality);
+  const h = terrain.getHeightAt;
 
   // Create foliage (trees, bushes, grass)
-  createFoliageFromManifest(manifest.foliage, scene, quality);
+  createFoliageFromManifest(manifest.foliage, scene, quality, h);
 
   // Create rocks
-  createRocksFromManifest(manifest.rocks, scene, quality);
+  createRocksFromManifest(manifest.rocks, scene, quality, h);
 
   // Create roads
   for (const road of manifest.roads) {
-    createRoadFromManifest(road, scene);
+    createRoadFromManifest(road, scene, h);
   }
 
   // Create landmarks (shrine, gate, bridge)
   for (const landmark of manifest.landmarks) {
     if (landmark.type === 'shrine') {
-      createShrineFromManifest(landmark, scene);
+      createShrineFromManifest(landmark, scene, h);
     } else {
-      createLandmarksFromManifest(landmark, scene);
+      createLandmarksFromManifest(landmark, scene, h);
     }
   }
 
   // Create water bodies
   for (const water of manifest.water) {
-    createWater(water, scene);
+    createWater(water, scene, h);
   }
 
   // Create sky and atmosphere
@@ -67,7 +71,8 @@ export function loadZoneFromManifest(
 function createRocksFromManifest(
   rocks: RockGroup[],
   scene: Scene,
-  quality: QualitySettings
+  quality: QualitySettings,
+  getHeightAt: (x: number, z: number) => number
 ): void {
   const rockMat = new StandardMaterial('rockMat', scene);
   rockMat.diffuseColor = new Color3(0.2, 0.2, 0.22);
@@ -92,8 +97,9 @@ function createRocksFromManifest(
       const z = group.area.centerZ + Math.sin(angle) * dist;
       const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
 
+      const y = getHeightAt(x, z);
       const instance = sourceMesh.createInstance(`${group.id}_${i}`);
-      instance.position = new Vector3(x, scale * 0.5, z);
+      instance.position = new Vector3(x, y + scale * 0.5, z);
       instance.scaling.set(
         scale * (0.7 + Math.random() * 0.6),
         scale * (0.5 + Math.random() * 0.5),

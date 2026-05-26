@@ -104,6 +104,10 @@ export class PlayerController {
     return { x: this.motor.x, y: this.motor.y, z: this.motor.z };
   }
 
+  getYaw(): number {
+    return this.motor.yaw;
+  }
+
   /**
    * Run the character motor for one frame.
    */

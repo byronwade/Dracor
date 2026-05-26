@@ -14,11 +14,15 @@ const NAV_LINKS = [
   { href: "/dev", label: "Dev" },
 ];
 
+const HIDDEN_PATHS = ["/characters/new"];
+
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  if (HIDDEN_PATHS.includes(pathname)) return null;
 
   useEffect(() => {
     async function checkAuth() {

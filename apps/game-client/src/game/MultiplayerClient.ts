@@ -199,6 +199,14 @@ export class MultiplayerClient {
     return this.remotePlayers.size + 1;
   }
 
+  getRemotePlayerPositions(): Array<{ x: number; z: number }> {
+    const positions: Array<{ x: number; z: number }> = [];
+    for (const [, rp] of this.remotePlayers) {
+      positions.push({ x: rp.targetX, z: rp.targetZ });
+    }
+    return positions;
+  }
+
   disconnect(): void {
     if (this.room) {
       try { this.room.leave(); } catch { /* ignore */ }

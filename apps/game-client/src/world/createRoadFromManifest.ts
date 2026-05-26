@@ -11,10 +11,12 @@ import type { RoadDefinition } from '../scenes/IronvaleOutskirtsScene';
 
 /**
  * Create a broken cobblestone road by placing flat box segments between waypoints.
+ * Each segment samples terrain height so the road follows the ground.
  */
 export function createRoadFromManifest(
   road: RoadDefinition,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): Mesh {
   const parent = new TransformNode(`road_${road.id}`, scene) as unknown as Mesh;
 
@@ -40,6 +42,9 @@ export function createRoadFromManifest(
     const segmentLength = direction.length();
     const midpoint = start.add(direction.scale(0.5));
 
+    // Sample terrain height at the midpoint of the segment
+    const midY = getHeightAt(midpoint.x, midpoint.z) + 0.05;
+
     // Create road segment
     const segment = MeshBuilder.CreateBox(
       `roadSeg_${road.id}_${i}`,
@@ -50,7 +55,7 @@ export function createRoadFromManifest(
       },
       scene
     );
-    segment.position = midpoint;
+    segment.position = new Vector3(midpoint.x, midY, midpoint.z);
     segment.material = roadMat;
 
     // Rotate to align with direction
@@ -75,13 +80,16 @@ export function createRoadFromManifest(
         rubblePos.x += Math.cos(angle + Math.PI * 0.5) * offset;
         rubblePos.z += Math.sin(angle + Math.PI * 0.5) * offset;
 
+        // Sample terrain height at the rubble position
+        const rubbleY = getHeightAt(rubblePos.x, rubblePos.z) + 0.1;
+
         const rubbleSize = 0.3 + Math.random() * 0.5;
         const rubble = MeshBuilder.CreateBox(
           `rubble_${road.id}_${i}_${r}`,
           { width: rubbleSize, height: rubbleSize * 0.4, depth: rubbleSize },
           scene
         );
-        rubble.position = new Vector3(rubblePos.x, rubblePos.y + 0.1, rubblePos.z);
+        rubble.position = new Vector3(rubblePos.x, rubbleY, rubblePos.z);
         rubble.rotation.y = Math.random() * Math.PI * 2;
         rubble.rotation.x = (Math.random() - 0.5) * 0.4;
         rubble.material = rubbleMat;

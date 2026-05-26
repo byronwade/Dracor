@@ -10,12 +10,32 @@ import type { WaterBodyDefinition } from '../scenes/IronvaleOutskirtsScene';
 
 /**
  * Create a semi-transparent water surface for streams and ponds.
+ * Samples surrounding terrain heights to place water in a natural depression
+ * and adds an animated shimmer effect.
  */
 export function createWater(
   water: WaterBodyDefinition,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): Mesh {
   const pos = water.position;
+  const halfW = water.size.width * 0.5;
+  const halfD = water.size.depth * 0.5;
+
+  // Sample terrain height at 9 points across the water body and use the minimum
+  const samplePoints = [
+    getHeightAt(pos.x, pos.z),
+    getHeightAt(pos.x - halfW, pos.z - halfD),
+    getHeightAt(pos.x + halfW, pos.z - halfD),
+    getHeightAt(pos.x - halfW, pos.z + halfD),
+    getHeightAt(pos.x + halfW, pos.z + halfD),
+    getHeightAt(pos.x - halfW, pos.z),
+    getHeightAt(pos.x + halfW, pos.z),
+    getHeightAt(pos.x, pos.z - halfD),
+    getHeightAt(pos.x, pos.z + halfD),
+  ];
+  const minHeight = Math.min(...samplePoints);
+  const waterY = minHeight - 0.1;
 
   const waterMesh = MeshBuilder.CreateGround(
     `water_${water.id}`,
@@ -26,7 +46,7 @@ export function createWater(
     },
     scene
   );
-  waterMesh.position = new Vector3(pos.x, pos.y, pos.z);
+  waterMesh.position = new Vector3(pos.x, waterY, pos.z);
 
   // Rotate water plane if flow direction suggests it
   if (water.flowDirection) {
@@ -47,6 +67,17 @@ export function createWater(
 
   waterMesh.material = waterMat;
   waterMesh.isPickable = false;
+
+  // Animated shimmer: gently pulse the emissive color
+  scene.onBeforeRenderObservable.add(() => {
+    const t = performance.now() * 0.001;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.8);
+    waterMat.emissiveColor = new Color3(
+      0.02 + 0.01 * pulse,
+      0.04 + 0.02 * pulse,
+      0.08 + 0.04 * pulse
+    );
+  });
 
   return waterMesh;
 }

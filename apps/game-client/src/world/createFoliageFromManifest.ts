@@ -153,11 +153,13 @@ function createGrassSource(scene: Scene): Mesh {
 
 /**
  * Create instanced foliage from manifest foliage groups.
+ * Every placed object samples terrain height so it sits on the ground.
  */
 export function createFoliageFromManifest(
   foliageGroups: FoliageGroup[],
   scene: Scene,
-  quality: QualitySettings
+  quality: QualitySettings,
+  getHeightAt: (x: number, z: number) => number
 ): void {
   ensureMaterials(scene);
 
@@ -172,16 +174,16 @@ export function createFoliageFromManifest(
 
     if (group.type === 'tree_pine') {
       if (!pineSource) pineSource = createPineTreeSource(scene);
-      spawnInstances(pineSource, group, count, scene, true);
+      spawnInstances(pineSource, group, count, scene, true, getHeightAt);
     } else if (group.type === 'tree_dead') {
       if (!deadSource) deadSource = createDeadTreeSource(scene);
-      spawnInstances(deadSource, group, count, scene, true);
+      spawnInstances(deadSource, group, count, scene, true, getHeightAt);
     } else if (group.type === 'bush') {
       if (!bushSource) bushSource = createBushSource(scene);
-      spawnInstances(bushSource, group, count, scene, false);
+      spawnInstances(bushSource, group, count, scene, false, getHeightAt);
     } else if (group.type === 'grass_tall' || group.type === 'grass_short') {
       if (!grassSource) grassSource = createGrassSource(scene);
-      spawnGrass(grassSource, group, count, scene);
+      spawnGrass(grassSource, group, count, scene, getHeightAt);
     }
   }
 }
@@ -191,7 +193,8 @@ function spawnInstances(
   group: FoliageGroup,
   count: number,
   scene: Scene,
-  _isTree: boolean
+  _isTree: boolean,
+  getHeightAt: (x: number, z: number) => number
 ): void {
   const parent = new TransformNode(`foliage_${group.id}`, scene);
 
@@ -202,10 +205,12 @@ function spawnInstances(
     const z = group.area.centerZ + Math.sin(angle) * dist;
     const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
 
+    const y = getHeightAt(x, z);
+
     // Clone the multi-mesh tree as a hierarchy
     const clone = source.clone(`${group.id}_${i}`, parent);
     if (clone) {
-      clone.position = new Vector3(x, 0, z);
+      clone.position = new Vector3(x, y, z);
       clone.scaling.setAll(scale);
       clone.rotation.y = Math.random() * Math.PI * 2;
       clone.isVisible = true;
@@ -222,7 +227,8 @@ function spawnGrass(
   source: Mesh,
   group: FoliageGroup,
   count: number,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): void {
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
@@ -231,8 +237,10 @@ function spawnGrass(
     const z = group.area.centerZ + Math.sin(angle) * dist;
     const scale = group.minScale + Math.random() * (group.maxScale - group.minScale);
 
+    const y = getHeightAt(x, z);
+
     const instance = source.createInstance(`grass_${group.id}_${i}`);
-    instance.position = new Vector3(x, scale * 0.4, z);
+    instance.position = new Vector3(x, y + scale * 0.4, z);
     instance.scaling.setAll(scale);
     instance.rotation.y = Math.random() * Math.PI * 2;
     // Billboard grass slightly for cheap volume effect

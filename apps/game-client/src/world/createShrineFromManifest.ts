@@ -16,14 +16,19 @@ import type { LandmarkDefinition } from '../scenes/IronvaleOutskirtsScene';
 
 /**
  * Create the Dracor Memory Shrine with glowing ember crystal and particle effects.
+ * Samples terrain height at the shrine position so it sits on the ground.
  */
 export function createShrineFromManifest(
   landmark: LandmarkDefinition,
-  scene: Scene
+  scene: Scene,
+  getHeightAt: (x: number, z: number) => number
 ): Mesh {
   const parent = new TransformNode(`shrine_${landmark.id}`, scene) as unknown as Mesh;
   const pos = landmark.position;
   const scale = landmark.scale ?? 1.0;
+
+  // Sample terrain height as the base Y for all shrine elements
+  const baseY = getHeightAt(pos.x, pos.z);
 
   // Dark stone pedestal
   const pedestalMat = new StandardMaterial('shrinePedestalMat', scene);
@@ -36,7 +41,7 @@ export function createShrineFromManifest(
     { diameter: 2 * scale, height: 1.2 * scale, tessellation: 12 },
     scene
   );
-  pedestal.position = new Vector3(pos.x, pos.y + 0.6 * scale, pos.z);
+  pedestal.position = new Vector3(pos.x, baseY + 0.6 * scale, pos.z);
   pedestal.material = pedestalMat;
   pedestal.parent = parent;
 
@@ -46,7 +51,7 @@ export function createShrineFromManifest(
     { diameter: 3 * scale, height: 0.3 * scale, tessellation: 12 },
     scene
   );
-  base.position = new Vector3(pos.x, pos.y + 0.15 * scale, pos.z);
+  base.position = new Vector3(pos.x, baseY + 0.15 * scale, pos.z);
   base.material = pedestalMat;
   base.parent = parent;
 
@@ -65,7 +70,7 @@ export function createShrineFromManifest(
     );
     pillar.position = new Vector3(
       pos.x + Math.cos(angle) * dist,
-      pos.y + 1.25 * scale,
+      baseY + 1.25 * scale,
       pos.z + Math.sin(angle) * dist
     );
     pillar.material = pillarMat;
@@ -99,7 +104,7 @@ export function createShrineFromManifest(
     { diameter: 0.6 * scale, segments: 16 },
     scene
   );
-  crystal.position = new Vector3(pos.x, pos.y + 1.6 * scale, pos.z);
+  crystal.position = new Vector3(pos.x, baseY + 1.6 * scale, pos.z);
   crystal.material = crystalMat;
   crystal.parent = parent;
 
@@ -119,14 +124,14 @@ export function createShrineFromManifest(
     { diameter: 0.35 * scale, segments: 12 },
     scene
   );
-  innerGlow.position = new Vector3(pos.x, pos.y + 1.6 * scale, pos.z);
+  innerGlow.position = new Vector3(pos.x, baseY + 1.6 * scale, pos.z);
   innerGlow.material = innerGlowMat;
   innerGlow.parent = parent;
 
   // Point light for the shrine glow
   const shrineLight = new PointLight(
     'shrineLight',
-    new Vector3(pos.x, pos.y + 2.0 * scale, pos.z),
+    new Vector3(pos.x, baseY + 2.0 * scale, pos.z),
     scene
   );
   shrineLight.intensity = 2.0;
@@ -140,7 +145,7 @@ export function createShrineFromManifest(
 
   // Particle system for rising ember particles
   if (landmark.particles === 'ember_rise') {
-    createEmberParticles(scene, new Vector3(pos.x, pos.y + 1.6 * scale, pos.z), parent as unknown as TransformNode);
+    createEmberParticles(scene, new Vector3(pos.x, baseY + 1.6 * scale, pos.z), parent as unknown as TransformNode);
   }
 
   // Ring of rune stones at base
@@ -162,7 +167,7 @@ export function createShrineFromManifest(
     );
     rune.position = new Vector3(
       pos.x + Math.cos(angle) * dist,
-      pos.y + 0.25 * scale,
+      baseY + 0.25 * scale,
       pos.z + Math.sin(angle) * dist
     );
     rune.rotation.y = angle + Math.PI * 0.5;

@@ -18,6 +18,7 @@ import { GameLoop } from './GameLoop';
 import { createGameHud, type GameHud } from '../ui/createGameHud';
 import { createPerformancePanel, type PerformancePanel } from '../ui/createPerformancePanel';
 import { createConnectionStatus, type ConnectionStatusUI } from '../ui/createConnectionStatus';
+import { createMinimap, type Minimap } from '../ui/createMinimap';
 
 export class GameApp {
   private engine!: Engine;
@@ -32,6 +33,7 @@ export class GameApp {
   private hud!: GameHud;
   private perfPanel!: PerformancePanel;
   private connectionUI!: ConnectionStatusUI;
+  private minimap!: Minimap;
   private playerName: string;
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -79,6 +81,7 @@ export class GameApp {
     this.perfPanel = createPerformancePanel(this.engine, this.scene, this.quality);
     this.connectionUI = createConnectionStatus();
     this.connectionUI.setQualityTier(this.quality.tier);
+    this.minimap = createMinimap();
 
     this.chatController = new ChatController();
 
@@ -125,6 +128,11 @@ export class GameApp {
     this.playerController.update(input, dt);
     this.multiplayerClient.interpolateRemotePlayers();
     this.perfPanel.update();
+
+    const pos = this.playerController.getPosition();
+    const yaw = this.playerController.getYaw();
+    this.minimap.updatePlayerPosition(pos.x, pos.z, yaw);
+    this.minimap.updateRemotePlayers(this.multiplayerClient.getRemotePlayerPositions());
   }
 
   private async connectToServer(): Promise<void> {
@@ -238,6 +246,7 @@ export class GameApp {
     this.hud.dispose();
     this.perfPanel.dispose();
     this.connectionUI.dispose();
+    this.minimap.dispose();
     this.scene.dispose();
     this.engine.dispose();
   }
