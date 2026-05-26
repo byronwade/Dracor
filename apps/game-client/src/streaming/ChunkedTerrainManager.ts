@@ -1,6 +1,6 @@
 import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -93,7 +93,7 @@ export class ChunkedTerrainManager {
   private terrain: TerrainDefinition;
   private config: StreamingConfig;
   private loadedChunks = new Map<string, LoadedChunk>();
-  private material: PBRMaterial;
+  private material: StandardMaterial;
   private chunkGen: ChunkGenerator;
   private biomeResolver: BiomeResolver;
   private _chunkSize: number;
@@ -109,10 +109,11 @@ export class ChunkedTerrainManager {
     const climate = createClimateMap(WORLD_SEED, elevMap.getElevation, elevMap.getContinental);
     this.biomeResolver = createBiomeResolver(WORLD_SEED, elevMap.getElevation, elevMap.getContinental, climate);
 
-    this.material = new PBRMaterial('terrainMat', scene);
-    this.material.albedoColor = new Color3(1, 1, 1);
-    this.material.metallic = 0;
-    this.material.roughness = 0.95;
+    this.material = new StandardMaterial('terrainMat', scene);
+    this.material.diffuseColor = new Color3(1, 1, 1);
+    this.material.specularColor = new Color3(0.05, 0.05, 0.05);
+    this.material.roughness = 1.0;
+    (this.material as any).environmentIntensity = 0;
   }
 
   worldToGrid(worldX: number, worldZ: number): { gridX: number; gridZ: number } {

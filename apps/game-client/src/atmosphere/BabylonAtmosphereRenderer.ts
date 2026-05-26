@@ -31,7 +31,7 @@ export class BabylonAtmosphereRenderer {
 
     const hdrTexture = new HDRCubeTexture('/qwantani_sunset_2k.hdr', scene, 512);
     scene.environmentTexture = hdrTexture;
-    scene.environmentIntensity = 0.6;
+    scene.environmentIntensity = 0.4;
 
     this.skybox = scene.createDefaultSkybox(hdrTexture, true, 10000, 0.3) as Mesh;
     if (this.skybox) {

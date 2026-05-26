@@ -667,8 +667,8 @@ function setupPostProcessing(scene: Scene, quality: QualitySettings): void {
     pipeline.imageProcessingEnabled = true;
     pipeline.imageProcessing.toneMappingEnabled = true;
     pipeline.imageProcessing.toneMappingType = 2;
-    pipeline.imageProcessing.exposure = 1.1;
-    pipeline.imageProcessing.contrast = 1.1;
+    pipeline.imageProcessing.exposure = 0.85;
+    pipeline.imageProcessing.contrast = 1.15;
 
     pipeline.imageProcessing.vignetteEnabled = true;
     pipeline.imageProcessing.vignetteWeight = 1.8;
