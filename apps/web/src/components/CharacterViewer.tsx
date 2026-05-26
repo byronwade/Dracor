@@ -134,38 +134,72 @@ export function CharacterViewer({
     scene.clearColor = new B.Color4(0.02, 0.015, 0.03, 1);
     scene.ambientColor = new B.Color3(0.05, 0.04, 0.06);
 
-    // Camera — front-facing, slightly above eye level
+    // Camera — front-facing, user can freely orbit
+    const targetY = config.height * 0.55;
     const camera = new B.ArcRotateCamera(
       "camera",
-      Math.PI,
+      0,
       Math.PI / 2.4,
-      4.2,
-      new B.Vector3(0, 1.1, 0),
+      4.0,
+      new B.Vector3(0, targetY, 0),
       scene
     );
-    camera.lowerRadiusLimit = 2.5;
-    camera.upperRadiusLimit = 7;
-    camera.lowerBetaLimit = 0.4;
-    camera.upperBetaLimit = Math.PI / 2.05;
-    camera.wheelDeltaPercentage = 0.02;
+    camera.lowerRadiusLimit = 2.0;
+    camera.upperRadiusLimit = 8;
+    camera.lowerBetaLimit = 0.3;
+    camera.upperBetaLimit = Math.PI / 1.9;
+    camera.wheelDeltaPercentage = 0.01;
+    camera.panningSensibility = 0;
+    camera.inertia = 0.85;
+    camera.angularSensibilityX = 800;
+    camera.angularSensibilityY = 800;
     camera.attachControl(canvasRef.current, true);
 
-    // 3-point studio lighting
+    // Idle sway — pauses when user is interacting
+    let idleTime = 0;
+    let userInteracting = false;
+    let interactTimeout: ReturnType<typeof setTimeout> | null = null;
+    const baseAlpha = 0;
+
+    const onPointerDown = () => {
+      userInteracting = true;
+      if (interactTimeout) clearTimeout(interactTimeout);
+    };
+    const onPointerUp = () => {
+      if (interactTimeout) clearTimeout(interactTimeout);
+      interactTimeout = setTimeout(() => { userInteracting = false; }, 2000);
+    };
+    canvasRef.current!.addEventListener("pointerdown", onPointerDown);
+    canvasRef.current!.addEventListener("pointerup", onPointerUp);
+
+    scene.onBeforeRenderObservable.add(() => {
+      if (!userInteracting) {
+        idleTime += 0.002;
+        camera.alpha = baseAlpha + Math.sin(idleTime) * 0.15;
+      }
+    });
+
+    // 3-point studio lighting (follows the front of the character)
     const keyLight = new B.DirectionalLight("key", new B.Vector3(-0.5, -1.2, 1), scene);
     keyLight.intensity = 1.6;
     keyLight.diffuse = new B.Color3(1, 0.95, 0.9);
 
     const fillLight = new B.HemisphericLight("fill", new B.Vector3(0, 1, 0), scene);
-    fillLight.intensity = 0.45;
-    fillLight.diffuse = new B.Color3(0.55, 0.6, 0.8);
+    fillLight.intensity = 0.5;
+    fillLight.diffuse = new B.Color3(0.55, 0.6, 0.85);
     fillLight.groundColor = new B.Color3(0.1, 0.06, 0.04);
 
-    const rimLight = new B.PointLight("rim", new B.Vector3(1.5, 2, -2), scene);
-    rimLight.intensity = 0.8;
+    const rimLight = new B.PointLight("rim", new B.Vector3(-1.5, 2.5, -2.5), scene);
+    rimLight.intensity = 0.9;
     rimLight.diffuse = new B.Color3(0.7, 0.75, 0.9);
-    rimLight.range = 8;
+    rimLight.range = 10;
 
-    // Simple dark ground
+    const frontFill = new B.PointLight("frontFill", new B.Vector3(0, 1.0, 3), scene);
+    frontFill.intensity = 0.3;
+    frontFill.diffuse = new B.Color3(1, 0.95, 0.9);
+    frontFill.range = 6;
+
+    // Dark ground
     const ground = B.MeshBuilder.CreateGround("ground", { width: 16, height: 16 }, scene);
     ground.position.y = 0;
     const gMat = new B.StandardMaterial("gMat", scene);
@@ -176,19 +210,17 @@ export function CharacterViewer({
     // Build the character
     buildCharacter(B, scene, config, raceId, weapon, memory);
 
-    // Gentle auto-rotate
-    if (autoRotate) {
-      let t = 0;
-      scene.onBeforeRenderObservable.add(() => {
-        t += 0.003;
-        camera.alpha = Math.PI + Math.sin(t) * 0.2;
-      });
-    }
-
     engine.runRenderLoop(() => scene.render());
     const onResize = () => engine.resize();
     window.addEventListener("resize", onResize);
-    return () => { window.removeEventListener("resize", onResize); engine.dispose(); };
+    const cv = canvasRef.current!;
+    return () => {
+      cv.removeEventListener("pointerdown", onPointerDown);
+      cv.removeEventListener("pointerup", onPointerUp);
+      if (interactTimeout) clearTimeout(interactTimeout);
+      window.removeEventListener("resize", onResize);
+      engine.dispose();
+    };
   }, [raceId, weapon, memory, autoRotate]);
 
   useEffect(() => {
