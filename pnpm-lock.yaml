@@ -29,6 +29,9 @@ importers:
       '@babylonjs/gui':
         specifier: ^7.0.0
         version: 7.54.3(@babylonjs/core@7.54.3)
+      '@babylonjs/loaders':
+        specifier: ^7.0.0
+        version: 7.54.3(@babylonjs/core@7.54.3)(babylonjs-gltf2interface@7.54.3)
       '@babylonjs/materials':
         specifier: ^7.0.0
         version: 7.54.3(@babylonjs/core@7.54.3)
@@ -348,6 +351,12 @@ packages:
     resolution: {integrity: sha512-fsPJpfMWXliEFXhVYk9eqRjT1JB+Zv0TtSDs9QWdUKhVexCyaeDCcMS7j+YkQhupOHpR8HBYXlsP/7je4NmbDg==}
     peerDependencies:
       '@babylonjs/core': ^7.0.0
+
+  '@babylonjs/loaders@7.54.3':
+    resolution: {integrity: sha512-RBPmOsaMTxi6Ga08ueLTm6Tnvx/l2nNQigucubvrngZ7muwn5/ubfcStckkI1c0qvhR1+/FFlD54do7gZ1pnsQ==}
+    peerDependencies:
+      '@babylonjs/core': ^7.0.0
+      babylonjs-gltf2interface: ^7.0.0
 
   '@babylonjs/materials@7.54.3':
     resolution: {integrity: sha512-WYqvpX6+iR0/h/X0SaoFZH2hD1nDIzu9Qo86/yEK8R+whhShgpkJ9VDdTE1yYNBxf5azFoUrxWcMy3OXNn3Z3w==}
@@ -1060,6 +1069,9 @@ packages:
     hasBin: true
     peerDependencies:
       postcss: ^8.1.0
+
+  babylonjs-gltf2interface@7.54.3:
+    resolution: {integrity: sha512-ZAWYFyE+SOczfWT19O4e3YRkCZ5i57SiD2eK2kqc+Tow/t9X1S45xgSFNuHZff++dd5BlVIEQDSnFV+McFLSnQ==}
 
   baseline-browser-mapping@2.10.32:
     resolution: {integrity: sha512-wbPvpyjJPC0zdfdKXxqEL3Ea+bOMD/87X4lftiJkkaBiuG6ALQy1SLmEd7BSmVCuwCQsBrCamgBoLyfFDD1EPg==}
@@ -1818,6 +1830,11 @@ snapshots:
     dependencies:
       '@babylonjs/core': 7.54.3
 
+  '@babylonjs/loaders@7.54.3(@babylonjs/core@7.54.3)(babylonjs-gltf2interface@7.54.3)':
+    dependencies:
+      '@babylonjs/core': 7.54.3
+      babylonjs-gltf2interface: 7.54.3
+
   '@babylonjs/materials@7.54.3(@babylonjs/core@7.54.3)':
     dependencies:
       '@babylonjs/core': 7.54.3
@@ -2311,6 +2328,8 @@ snapshots:
       picocolors: 1.1.1
       postcss: 8.5.15
       postcss-value-parser: 4.2.0
+
+  babylonjs-gltf2interface@7.54.3: {}
 
   baseline-browser-mapping@2.10.32: {}
 

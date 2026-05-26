@@ -13,6 +13,7 @@
   "dependencies": {
     "@babylonjs/core": "^7.0.0",
     "@babylonjs/gui": "^7.0.0",
+    "@babylonjs/loaders": "^7.0.0",
     "@babylonjs/materials": "^7.0.0",
     "colyseus.js": "^0.15.0"
   },
