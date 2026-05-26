@@ -104,6 +104,8 @@ const RACE_CONFIGS: Record<
 
 export function CharacterViewer({
   raceId,
+  weapon,
+  memory,
   autoRotate = true,
   className = "",
 }: CharacterViewerProps) {
@@ -172,7 +174,7 @@ export function CharacterViewer({
     ground.material = gMat;
 
     // Build the character
-    buildCharacter(B, scene, config, raceId);
+    buildCharacter(B, scene, config, raceId, weapon, memory);
 
     // Gentle auto-rotate
     if (autoRotate) {
@@ -187,7 +189,7 @@ export function CharacterViewer({
     const onResize = () => engine.resize();
     window.addEventListener("resize", onResize);
     return () => { window.removeEventListener("resize", onResize); engine.dispose(); };
-  }, [raceId, autoRotate]);
+  }, [raceId, weapon, memory, autoRotate]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -208,7 +210,7 @@ export function CharacterViewer({
   );
 }
 
-function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId], raceId: RaceId) {
+function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId], raceId: RaceId, weapon?: string, memory?: string) {
   const S = config.height / 1.8; // scale factor
   const root = new B.TransformNode("root", scene);
   const seg = 24; // high tessellation for smooth surfaces
@@ -609,6 +611,155 @@ function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId
     goggle.rotation.x = Math.PI / 2.5;
     goggle.material = accentMat;
     goggle.parent = root;
+  }
+
+  // --- Weapon in right hand ---
+  if (weapon) {
+    const rightHandX = (shoulderW * S + 0.02 * S) * 1.12;
+    const rightHandY = shoulderY - armUp * S - armLow * S;
+
+    const weaponMat = new B.StandardMaterial("weaponMat", scene);
+    weaponMat.specularColor = new B.Color3(0.6, 0.6, 0.6);
+    weaponMat.specularPower = 8;
+
+    if (weapon === "blade") {
+      weaponMat.diffuseColor = new B.Color3(0.6, 0.6, 0.65);
+      // Blade
+      const blade = B.MeshBuilder.CreateBox("blade", {
+        width: 0.025 * S, height: 0.55 * S, depth: 0.008 * S
+      }, scene);
+      blade.position.set(rightHandX, rightHandY + 0.28 * S, 0.03 * S);
+      blade.material = weaponMat;
+      blade.parent = root;
+      // Guard
+      const guard = B.MeshBuilder.CreateBox("guard", {
+        width: 0.12 * S, height: 0.015 * S, depth: 0.025 * S
+      }, scene);
+      guard.position.set(rightHandX, rightHandY + 0.01 * S, 0.03 * S);
+      guard.material = accentMat;
+      guard.parent = root;
+      // Grip
+      const grip = B.MeshBuilder.CreateCylinder("grip", {
+        diameter: 0.02 * S, height: 0.1 * S, tessellation: 8
+      }, scene);
+      grip.position.set(rightHandX, rightHandY - 0.05 * S, 0.03 * S);
+      grip.material = darkMat;
+      grip.parent = root;
+    } else if (weapon === "bow") {
+      weaponMat.diffuseColor = new B.Color3(0.4, 0.25, 0.12);
+      // Bow arc
+      const bow = B.MeshBuilder.CreateTorus("bow", {
+        diameter: 0.45 * S, thickness: 0.018 * S, arc: 0.55, tessellation: 20
+      }, scene);
+      bow.position.set(rightHandX + 0.05 * S, rightHandY + 0.15 * S, 0.06 * S);
+      bow.rotation.y = Math.PI / 2;
+      bow.rotation.z = 0.1;
+      bow.material = weaponMat;
+      bow.parent = root;
+      // String
+      const string = B.MeshBuilder.CreateCylinder("bowstring", {
+        diameter: 0.004 * S, height: 0.4 * S, tessellation: 4
+      }, scene);
+      string.position.set(rightHandX + 0.05 * S, rightHandY + 0.15 * S, 0.06 * S);
+      const stringMat = new B.StandardMaterial("stringMat", scene);
+      stringMat.diffuseColor = new B.Color3(0.8, 0.8, 0.75);
+      stringMat.emissiveColor = new B.Color3(0.1, 0.1, 0.1);
+      string.material = stringMat;
+      string.parent = root;
+    } else if (weapon === "staff") {
+      weaponMat.diffuseColor = new B.Color3(0.35, 0.22, 0.1);
+      // Staff pole
+      const staff = B.MeshBuilder.CreateCylinder("staff", {
+        diameterTop: 0.015 * S, diameterBottom: 0.025 * S, height: 1.1 * S, tessellation: 10
+      }, scene);
+      staff.position.set(rightHandX, rightHandY + 0.55 * S, 0.03 * S);
+      staff.material = weaponMat;
+      staff.parent = root;
+      // Orb at top
+      const orb = B.MeshBuilder.CreateSphere("staffOrb", {
+        diameter: 0.08 * S, segments: 16
+      }, scene);
+      orb.position.set(rightHandX, rightHandY + 1.1 * S, 0.03 * S);
+      const orbMat = new B.StandardMaterial("orbMat", scene);
+      orbMat.diffuseColor = new B.Color3(0.1, 0.05, 0.15);
+      orbMat.emissiveColor = new B.Color3(0.6, 0.3, 1.0);
+      orbMat.alpha = 0.9;
+      orb.material = orbMat;
+      orb.parent = root;
+      // Orb glow pulse
+      const orbPulse = new B.Animation("orbPulse", "material.emissiveColor", 30,
+        B.Animation.ANIMATIONTYPE_COLOR3, B.Animation.ANIMATIONLOOPMODE_CYCLE);
+      orbPulse.setKeys([
+        { frame: 0, value: new B.Color3(0.6, 0.3, 1.0) },
+        { frame: 45, value: new B.Color3(0.9, 0.5, 1.0) },
+        { frame: 90, value: new B.Color3(0.6, 0.3, 1.0) },
+      ]);
+      orb.animations.push(orbPulse);
+      scene.beginAnimation(orb, 0, 90, true);
+    }
+  }
+
+  // --- Dragon Memory aura ---
+  if (memory) {
+    const memoryColors: Record<string, [number, number, number]> = {
+      ember: [1.0, 0.4, 0.0],
+      stone: [0.7, 0.55, 0.15],
+      storm: [0.2, 0.5, 1.0],
+    };
+    const mc = memoryColors[memory];
+    if (mc) {
+      // Aura sphere — subtle glow around character
+      const aura = B.MeshBuilder.CreateSphere("memoryAura", {
+        diameter: 2.0 * S, segments: 20
+      }, scene);
+      aura.position.y = hipY + torsoH * S * 0.5;
+      const auraMat = new B.StandardMaterial("auraMat", scene);
+      auraMat.diffuseColor = new B.Color3(0, 0, 0);
+      auraMat.emissiveColor = new B.Color3(mc[0] * 0.12, mc[1] * 0.12, mc[2] * 0.12);
+      auraMat.alpha = 0.08;
+      auraMat.backFaceCulling = false;
+      aura.material = auraMat;
+      aura.parent = root;
+
+      // Aura pulse animation
+      const auraPulse = new B.Animation("auraPulse", "material.alpha", 30,
+        B.Animation.ANIMATIONTYPE_FLOAT, B.Animation.ANIMATIONLOOPMODE_CYCLE);
+      auraPulse.setKeys([
+        { frame: 0, value: 0.05 },
+        { frame: 50, value: 0.12 },
+        { frame: 100, value: 0.05 },
+      ]);
+      aura.animations.push(auraPulse);
+      scene.beginAnimation(aura, 0, 100, true);
+
+      // Ground ring — glowing circle at feet
+      const ring = B.MeshBuilder.CreateTorus("memoryRing", {
+        diameter: 1.6 * S, thickness: 0.012, tessellation: 48
+      }, scene);
+      ring.position.y = 0.02;
+      ring.rotation.x = Math.PI / 2;
+      const ringMat = new B.StandardMaterial("ringMat", scene);
+      ringMat.diffuseColor = new B.Color3(0, 0, 0);
+      ringMat.emissiveColor = new B.Color3(mc[0] * 0.4, mc[1] * 0.4, mc[2] * 0.4);
+      ring.material = ringMat;
+      ring.parent = root;
+
+      // Ring slow rotation
+      const ringRot = new B.Animation("ringRot", "rotation.y", 30,
+        B.Animation.ANIMATIONTYPE_FLOAT, B.Animation.ANIMATIONLOOPMODE_CYCLE);
+      ringRot.setKeys([
+        { frame: 0, value: 0 },
+        { frame: 300, value: Math.PI * 2 },
+      ]);
+      ring.animations.push(ringRot);
+      scene.beginAnimation(ring, 0, 300, true);
+
+      // Colored point light to tint the character
+      const memLight = new B.PointLight("memLight", new B.Vector3(0, 1.5, 0.5), scene);
+      memLight.intensity = 0.4;
+      memLight.diffuse = new B.Color3(mc[0], mc[1], mc[2]);
+      memLight.range = 4;
+    }
   }
 
   // --- Subtle idle breathing ---
