@@ -11,7 +11,10 @@
     "clean": "rm -rf .next out"
   },
   "dependencies": {
+    "@babylonjs/core": "^7.0.0",
+    "@babylonjs/materials": "^7.0.0",
     "@dracor/database": "workspace:*",
+    "@dracor/game-data": "workspace:*",
     "@dracor/shared": "workspace:*",
     "@dracor/ui": "workspace:*",
     "@supabase/ssr": "^0.5.2",

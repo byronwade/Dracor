@@ -7,3 +7,4 @@ export * from './npcs';
 export * from './enemies';
 export * from './items';
 export * from './region';
+export * from './races';

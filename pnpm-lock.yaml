@@ -94,9 +94,18 @@ importers:
 
   apps/web:
     dependencies:
+      '@babylonjs/core':
+        specifier: ^7.0.0
+        version: 7.54.3
+      '@babylonjs/materials':
+        specifier: ^7.0.0
+        version: 7.54.3(@babylonjs/core@7.54.3)
       '@dracor/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@dracor/game-data':
+        specifier: workspace:*
+        version: link:../../packages/game-data
       '@dracor/shared':
         specifier: workspace:*
         version: link:../../packages/shared

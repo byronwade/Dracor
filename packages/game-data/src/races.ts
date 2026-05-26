@@ -1,0 +1,272 @@
+import type { Race } from '@dracor/shared';
+
+export const RACES: Race[] = [
+  {
+    id: 'dracor',
+    name: 'Dracor',
+    tagline: 'Children of the Last Breath',
+    description:
+      'Born from the last breath of dying dragons, the Dracor carry fragments of ancient draconic power in their blood. They walk as mortals but bear the unmistakable marks of their lineage.',
+    lore: 'When the great dragons fell in the Sundering War, their death-breath crystallized into seeds of power that took root in mortal bloodlines. The Dracor are the inheritors of that legacy — neither fully dragon nor fully human, but something ancient and dangerous in between. Every Dracor walks the line between mortal will and ancient instinct.',
+    traits: [
+      'Ember eyes that glow faintly in darkness',
+      'Scale markings along arms, neck, and spine',
+      'Horn ridges unique to each individual',
+      'Faint heat shimmer when channeling power',
+      'Spectral dragon claws appear during combat',
+    ],
+    baseStats: {
+      strength: 8,
+      agility: 7,
+      vitality: 8,
+      spirit: 9,
+      focus: 8,
+    },
+    abilities: [
+      {
+        id: 'dragon_blood',
+        name: 'Dragon Blood',
+        description: 'Passively regenerate 2% HP per second when below 30% health. The ancient blood refuses to let you fall.',
+        type: 'passive',
+      },
+      {
+        id: 'breath_of_the_ancients',
+        name: 'Breath of the Ancients',
+        description: 'Unleash a cone of elemental energy matching your Dragon Memory. Deals 150% Spirit damage and applies a 3s debuff.',
+        type: 'active',
+        cooldown: 25,
+      },
+    ],
+    appearance: {
+      eyeColors: ['Ember Gold', 'Crimson Fire', 'Sapphire Frost', 'Emerald Venom', 'Violet Storm', 'Silver Ash'],
+      skinTones: ['Warm Bronze', 'Ashen Grey', 'Deep Obsidian', 'Pale Ivory', 'Burnished Copper'],
+      markings: ['Ember Veins', 'Frost Lattice', 'Storm Lines', 'Shadow Web', 'Void Cracks', 'None'],
+      hairStyles: ['Swept Flames', 'Obsidian Fall', 'Storm Crest', 'Ash Drift', 'Braided Horns', 'Shaved'],
+      uniqueFeature: 'Horn Style',
+      uniqueFeatureOptions: ['Swept Back', 'Crown Ridges', 'Twin Spires', 'Broken Stag', 'Coiled Ram', 'Vestigial Nubs'],
+    },
+    modelConfig: {
+      bodyType: 'medium',
+      height: 1.85,
+      primaryColor: '#8B4513',
+      secondaryColor: '#FF6B00',
+      emissiveColor: '#FF4500',
+      particleEffect: 'ember_sparks',
+    },
+  },
+  {
+    id: 'ironborn',
+    name: 'Ironborn',
+    tagline: 'Forged in the Deep Furnace',
+    description:
+      'Descendants of the mountain clans who survived the Sundering by retreating deep underground. Generations of living beside volcanic forges have made them dense, powerful, and nearly unbreakable.',
+    lore: 'When dragonfire rained from the sky, the mountain clans sealed themselves inside the Deepfurnace — a volcanic forge-city carved into living rock. Over centuries, the mineral-rich waters and geothermal heat reshaped them. Their bones grew dense as iron, their skin took on a metallic sheen, and their endurance became legendary. Now they emerge, blinking, into a world that moved on without them.',
+    traits: [
+      'Metallic sheen to skin that deflects glancing blows',
+      'Eyes like molten iron — orange-white and piercing',
+      'Stocky, immensely dense musculature',
+      'Geometric tattoos that glow when struck',
+      'Voice resonates with a subterranean bass',
+    ],
+    baseStats: {
+      strength: 11,
+      agility: 5,
+      vitality: 12,
+      spirit: 6,
+      focus: 6,
+    },
+    abilities: [
+      {
+        id: 'living_iron',
+        name: 'Living Iron',
+        description: 'Take 15% reduced physical damage at all times. Your iron-dense body shrugs off lesser blows.',
+        type: 'passive',
+      },
+      {
+        id: 'seismic_slam',
+        name: 'Seismic Slam',
+        description: 'Slam the ground with both fists, dealing 200% Strength damage in an area and stunning enemies for 2s.',
+        type: 'active',
+        cooldown: 30,
+      },
+    ],
+    appearance: {
+      eyeColors: ['Molten Orange', 'Forge White', 'Iron Grey', 'Copper Green', 'Coal Red'],
+      skinTones: ['Granite Grey', 'Iron Black', 'Copper Bronze', 'Slate Blue', 'Obsidian'],
+      markings: ['Forge Runes', 'Hammer Scars', 'Vein Lines', 'Circuit Patterns', 'None'],
+      hairStyles: ['Iron Mohawk', 'Braided Chains', 'Shaved Clean', 'Stone Dreads', 'Forge Crest'],
+      uniqueFeature: 'Metal Inlays',
+      uniqueFeatureOptions: ['Gold Brow Plates', 'Iron Jaw Guard', 'Copper Cheek Lines', 'Silver Temple Bands', 'Bronze Skull Cap', 'None'],
+    },
+    modelConfig: {
+      bodyType: 'heavy',
+      height: 1.55,
+      primaryColor: '#4A4A4A',
+      secondaryColor: '#C0C0C0',
+      emissiveColor: '#FF8C00',
+      particleEffect: 'forge_sparks',
+    },
+  },
+  {
+    id: 'sylvhari',
+    name: 'Sylvhari',
+    tagline: 'Whispers of the Verdant Wild',
+    description:
+      'Spirits of the ancient forest given mortal form. The Sylvhari are living conduits between the natural world and civilization — graceful, deadly, and deeply attuned to the pulse of living things.',
+    lore: 'Before the Sundering, the great forests were tended by pure spirits — formless guardians of root and branch. When dragonfire scorched the world, these spirits wove themselves into physical bodies to survive, becoming the Sylvhari. They remember being wind through leaves, rain on bark, moonlight through canopy. That memory makes them otherworldly, beautiful, and sometimes terrifyingly alien in their perspective.',
+    traits: [
+      'Luminescent patterns beneath translucent skin',
+      'Hair that shifts color with the seasons',
+      'Elongated ears that twitch toward sound',
+      'Move without disturbing grass or leaves',
+      'Faint floral scent that changes with mood',
+    ],
+    baseStats: {
+      strength: 5,
+      agility: 12,
+      vitality: 6,
+      spirit: 11,
+      focus: 6,
+    },
+    abilities: [
+      {
+        id: 'natures_veil',
+        name: "Nature's Veil",
+        description: 'While standing still for 3s, become invisible. Moving or attacking breaks the veil.',
+        type: 'passive',
+      },
+      {
+        id: 'thornstrike',
+        name: 'Thornstrike',
+        description: 'Launch a volley of thorns that deal 120% Agility damage and reduce target movement speed by 40% for 4s.',
+        type: 'active',
+        cooldown: 18,
+      },
+    ],
+    appearance: {
+      eyeColors: ['Leaf Green', 'Moonlight Silver', 'Petal Pink', 'Dawn Gold', 'Deep Violet'],
+      skinTones: ['Birch White', 'Moss Green', 'Twilight Blue', 'Autumn Gold', 'Petal Rose'],
+      markings: ['Vine Tracery', 'Leaf Veins', 'Bioluminescent Dots', 'Bark Patterns', 'Bloom Marks', 'None'],
+      hairStyles: ['Willow Flow', 'Thorn Crown', 'Moss Locks', 'Petal Cascade', 'Branch Antlers', 'Wind-swept'],
+      uniqueFeature: 'Ear Shape',
+      uniqueFeatureOptions: ['Long Swept', 'Leaf-tipped', 'Feathered', 'Curled Fern', 'Short Pointed', 'Petal-edged'],
+    },
+    modelConfig: {
+      bodyType: 'lean',
+      height: 1.95,
+      primaryColor: '#2E8B57',
+      secondaryColor: '#98FB98',
+      emissiveColor: '#00FF7F',
+      particleEffect: 'floating_leaves',
+    },
+  },
+  {
+    id: 'ashwalker',
+    name: 'Ashwalker',
+    tagline: 'Survivors of the Scorched Age',
+    description:
+      'The last pure humans of the frontier — hardened, adaptive, and relentlessly resourceful. What they lack in supernatural gifts, they make up for in sheer determination and versatility.',
+    lore: 'When the dragons fell and the world burned, most humans died. Those who survived did so through cunning, cooperation, and an iron refusal to lie down. The Ashwalkers are their descendants — generations tempered by hardship into something harder than steel. They have no magic in their blood, no ancient gifts. What they have is each other, their wits, and an unbreakable will to endure.',
+    traits: [
+      'Weathered features that speak of hard roads',
+      'Scarred hands that know every weapon',
+      'Eyes that miss nothing — always scanning',
+      'Adaptable physiology — recover faster from any condition',
+      'Natural leaders who inspire those around them',
+    ],
+    baseStats: {
+      strength: 8,
+      agility: 8,
+      vitality: 8,
+      spirit: 8,
+      focus: 8,
+    },
+    abilities: [
+      {
+        id: 'adaptable',
+        name: 'Adaptable',
+        description: 'Gain +10% to your highest stat in combat. Ashwalkers excel at whatever they focus on.',
+        type: 'passive',
+      },
+      {
+        id: 'rally_cry',
+        name: 'Rally Cry',
+        description: 'Shout a battle cry that grants +20% attack speed and +10% damage to all nearby allies for 8s.',
+        type: 'active',
+        cooldown: 45,
+      },
+    ],
+    appearance: {
+      eyeColors: ['Steel Grey', 'Warm Brown', 'Ice Blue', 'Forest Green', 'Amber'],
+      skinTones: ['Fair', 'Olive', 'Tanned', 'Dark Brown', 'Weathered Bronze'],
+      markings: ['Battle Scars', 'Tribal Paint', 'Brand Marks', 'Road Dust Lines', 'None'],
+      hairStyles: ['Warrior Knot', 'Loose and Wild', 'Shaved Sides', 'Braided Back', 'Short Cropped', 'Hood-worn'],
+      uniqueFeature: 'War Paint',
+      uniqueFeatureOptions: ['Eye Stripe', 'Half-face', 'Forehead Runes', 'Jaw Lines', 'Full War Mask', 'None'],
+    },
+    modelConfig: {
+      bodyType: 'medium',
+      height: 1.78,
+      primaryColor: '#8B7355',
+      secondaryColor: '#D2B48C',
+      emissiveColor: '#FFD700',
+    },
+  },
+  {
+    id: 'voidtouched',
+    name: 'Voidtouched',
+    tagline: 'Marked by the Space Between',
+    description:
+      'When the dragons died, their death-screams tore holes in reality. Some mortals were caught in those rifts and returned... changed. The Voidtouched exist partially in another dimension, giving them terrifying arcane power at a terrible cost.',
+    lore: 'The Void is not evil — it is absence. The space between stars, the silence between heartbeats, the darkness behind closed eyes. Those touched by it did not choose it; they were simply unlucky enough to be standing where reality tore open. Now they flicker between worlds, their bodies partially translucent, their minds touching thoughts that no mortal was meant to think. Most go mad. Those who survive become something extraordinary.',
+    traits: [
+      'Partially translucent — organs faintly visible',
+      'Shadow tendrils drift from extremities',
+      'Eyes are solid black with points of starlight',
+      'Voice echoes as if speaking from far away',
+      'Temperature drops in their presence',
+    ],
+    baseStats: {
+      strength: 5,
+      agility: 7,
+      vitality: 5,
+      spirit: 11,
+      focus: 12,
+    },
+    abilities: [
+      {
+        id: 'phase_shift',
+        name: 'Phase Shift',
+        description: 'Take 25% reduced magic damage. Your partially-dimensional body lets spells pass through you.',
+        type: 'passive',
+      },
+      {
+        id: 'void_rupture',
+        name: 'Void Rupture',
+        description: 'Tear open a rift at target location dealing 180% Focus damage over 4s to all enemies in the area. Pulls enemies toward center.',
+        type: 'active',
+        cooldown: 35,
+      },
+    ],
+    appearance: {
+      eyeColors: ['Void Black', 'Starfield', 'Nebula Purple', 'Cosmic Blue', 'Eclipse Gold'],
+      skinTones: ['Translucent Pale', 'Shadow Grey', 'Void Purple', 'Midnight Blue', 'Spectral White'],
+      markings: ['Rift Scars', 'Star Maps', 'Void Fractures', 'Dimensional Tears', 'Constellation Lines', 'None'],
+      hairStyles: ['Floating Wisps', 'Void Tendrils', 'Shadow Fall', 'Crystallized', 'Phase-shifted', 'None'],
+      uniqueFeature: 'Void Manifestation',
+      uniqueFeatureOptions: ['Third Eye', 'Floating Fragments', 'Shadow Crown', 'Rift Halo', 'Dimensional Echo', 'Subtle Flicker'],
+    },
+    modelConfig: {
+      bodyType: 'ethereal',
+      height: 1.82,
+      primaryColor: '#1a0033',
+      secondaryColor: '#6B0080',
+      emissiveColor: '#9B30FF',
+      particleEffect: 'void_particles',
+    },
+  },
+];
+
+export function getRaceById(id: string): Race | undefined {
+  return RACES.find((r) => r.id === id);
+}
