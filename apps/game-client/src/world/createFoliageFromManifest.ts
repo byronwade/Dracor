@@ -9,7 +9,7 @@ import '@babylonjs/core/Meshes/Builders/planeBuilder';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 
 import type { QualitySettings, FoliageGroup } from '../scenes/IronvaleOutskirtsScene';
-import { loadModel } from './modelLoader';
+import { loadModel, type ModelLoadConfig } from './modelLoader';
 import { generatePlacements, type PlacementConfig, type ExclusionData } from './placementEngine';
 import { createWindMaterial, updateWind } from './windShader';
 
@@ -142,7 +142,16 @@ export async function createFoliageFromManifest(
     let usedGlb = false;
 
     if (group.modelId) {
-      sourceMesh = await loadModel(group.modelId, scene);
+      const config: ModelLoadConfig | undefined =
+        group.modelFile || group.modelVariant
+          ? {
+              fileName: group.modelFile ?? `${group.modelId}.glb`,
+              variant: group.modelVariant,
+              lodLevel: 0,
+            }
+          : undefined;
+
+      sourceMesh = await loadModel(group.modelId, scene, config);
       if (sourceMesh) {
         usedGlb = true;
         const baseMat = sourceMesh.material;

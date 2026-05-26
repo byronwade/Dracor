@@ -2,6 +2,8 @@ export interface FoliageGroup {
   id: string;
   type: 'tree_pine' | 'tree_dead' | 'tree_broadleaf' | 'bush' | 'grass_tall' | 'grass_short' | 'fern' | 'flower';
   modelId: string;
+  modelFile?: string;
+  modelVariant?: string;
   count: number;
   area: { centerX: number; centerZ: number; radius: number };
   minScale: number;
