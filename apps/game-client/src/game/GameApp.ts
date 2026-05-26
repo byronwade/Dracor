@@ -91,9 +91,8 @@ export class GameApp {
       antialias: true,
     });
 
-    const savedTier = this.settings.get().qualityTier;
     const autoTier = autoSelectQuality(caps);
-    const tier = savedTier || autoTier;
+    const tier = autoTier;
     this.quality = getQualitySettings(tier);
     this.settings.set('qualityTier', tier);
     console.log(`[Game] Quality tier: ${tier} (WebGPU: ${caps.webgpu}, WebGL2: ${caps.webgl2})`);

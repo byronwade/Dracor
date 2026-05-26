@@ -29,6 +29,32 @@ const AUTO_FOLLOW_DELAY = 0.8;
 const INERTIA_DECAY = 0.92;
 const INERTIA_THRESHOLD = 0.0001;
 
+const CAMERA_STATE_KEY = 'dracor_camera_state';
+
+interface SavedCameraState {
+  alpha: number;
+  beta: number;
+  radius: number;
+}
+
+function loadCameraState(): SavedCameraState | null {
+  try {
+    const raw = sessionStorage.getItem(CAMERA_STATE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw) as SavedCameraState;
+    if (typeof state.alpha === 'number' && typeof state.beta === 'number' && typeof state.radius === 'number') {
+      return state;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveCameraState(alpha: number, beta: number, radius: number): void {
+  try {
+    sessionStorage.setItem(CAMERA_STATE_KEY, JSON.stringify({ alpha, beta, radius }));
+  } catch { /* ignore */ }
+}
+
 function lerpAngle(from: number, to: number, t: number): number {
   let diff = to - from;
   while (diff > Math.PI) diff -= Math.PI * 2;
@@ -65,11 +91,12 @@ export class CameraController {
     this.target = target;
     this.getHeightAt = getHeightAt || null;
 
-    this.targetAlpha = Math.PI;
-    this.targetBeta = DEFAULT_BETA;
-    this.targetRadius = DEFAULT_RADIUS;
+    const saved = loadCameraState();
+    this.targetAlpha = saved?.alpha ?? Math.PI;
+    this.targetBeta = saved?.beta ?? DEFAULT_BETA;
+    this.targetRadius = saved?.radius ?? DEFAULT_RADIUS;
     this.targetFov = DEFAULT_FOV;
-    this.collisionRadius = DEFAULT_RADIUS;
+    this.collisionRadius = saved?.radius ?? DEFAULT_RADIUS;
 
     this.camera = new ArcRotateCamera(
       'playerCamera',
@@ -158,6 +185,8 @@ export class CameraController {
     this.resolveTerrainCollision();
     this.resolveObjectCollision();
 
+    saveCameraState(this.camera.alpha, this.camera.beta, this.camera.radius);
+
     if (!this.initialized) {
       this.camera.alpha = this.targetAlpha;
       this.camera.beta = this.targetBeta;
@@ -222,6 +251,7 @@ export class CameraController {
   }
 
   dispose(): void {
+    saveCameraState(this.camera.alpha, this.camera.beta, this.camera.radius);
     this.camera.dispose();
   }
 }

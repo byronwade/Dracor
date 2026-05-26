@@ -121,10 +121,10 @@ export class ChunkedTerrainManager {
     };
   }
 
-  getChunksInRadius(playerX: number, playerZ: number, radius: number): Array<{ gridX: number; gridZ: number }> {
+  getChunksInRadius(playerX: number, playerZ: number, radius: number): Array<{ gridX: number; gridZ: number; dist: number }> {
     const player = this.worldToGrid(playerX, playerZ);
     const chunkRadius = Math.ceil(radius / this._chunkSize);
-    const result: Array<{ gridX: number; gridZ: number }> = [];
+    const result: Array<{ gridX: number; gridZ: number; dist: number }> = [];
 
     for (let dz = -chunkRadius; dz <= chunkRadius; dz++) {
       for (let dx = -chunkRadius; dx <= chunkRadius; dx++) {
@@ -133,11 +133,12 @@ export class ChunkedTerrainManager {
         const center = this.getChunkWorldCenter(gx, gz);
         const dist = Math.sqrt((playerX - center.x) ** 2 + (playerZ - center.z) ** 2);
         if (dist <= radius) {
-          result.push({ gridX: gx, gridZ: gz });
+          result.push({ gridX: gx, gridZ: gz, dist });
         }
       }
     }
 
+    result.sort((a, b) => a.dist - b.dist);
     return result;
   }
 
@@ -241,9 +242,7 @@ export class ChunkedTerrainManager {
     for (const coord of needed) {
       const key = `${coord.gridX}_${coord.gridZ}`;
       if (!this.loadedChunks.has(key)) {
-        const center = this.getChunkWorldCenter(coord.gridX, coord.gridZ);
-        const dist = Math.sqrt((playerPosition.x - center.x) ** 2 + (playerPosition.z - center.z) ** 2);
-        this.loadChunk(coord.gridX, coord.gridZ, dist);
+        this.loadChunk(coord.gridX, coord.gridZ, coord.dist);
         loaded++;
       }
     }

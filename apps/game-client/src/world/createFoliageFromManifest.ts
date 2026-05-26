@@ -162,9 +162,6 @@ export async function createFoliageFromManifest(
       sourceMesh = await loadModel(group.modelId, scene, config);
       if (sourceMesh) {
         usedGlb = true;
-        const baseMat = sourceMesh.material;
-        const windMat = createWindMaterial(scene, baseMat, group.modelId);
-        sourceMesh.material = windMat;
       }
     }
 
