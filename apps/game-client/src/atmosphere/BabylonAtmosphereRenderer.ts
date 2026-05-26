@@ -31,6 +31,7 @@ export class BabylonAtmosphereRenderer {
 
     const hdrTexture = new HDRCubeTexture('/qwantani_sunset_2k.hdr', scene, 512);
     scene.environmentTexture = hdrTexture;
+    scene.environmentIntensity = 0.6;
 
     this.skybox = scene.createDefaultSkybox(hdrTexture, true, 10000, 0.3) as Mesh;
     if (this.skybox) {
@@ -42,16 +43,16 @@ export class BabylonAtmosphereRenderer {
     this.ambientLight = existingAmbient
       ?? new HemisphericLight('atmosphereAmbient', new Vector3(0, 1, 0), scene);
     this.ambientLight.specular = Color3.Black();
-    this.ambientLight.intensity = 0.5;
-    this.ambientLight.diffuse = new Color3(0.6, 0.65, 0.75);
-    this.ambientLight.groundColor = new Color3(0.2, 0.18, 0.15);
+    this.ambientLight.intensity = 0.15;
+    this.ambientLight.diffuse = new Color3(0.4, 0.45, 0.55);
+    this.ambientLight.groundColor = new Color3(0.1, 0.08, 0.06);
 
     const existingSun = scene.getLightByName('atmosphereSun') as DirectionalLight | null;
     this.sunLight = existingSun
       ?? new DirectionalLight('atmosphereSun', new Vector3(-0.5, -1, -0.5).normalize(), scene);
-    this.sunLight.intensity = 1.8;
+    this.sunLight.intensity = 1.0;
     this.sunLight.diffuse = new Color3(1.0, 0.9, 0.75);
-    this.sunLight.specular = new Color3(0.8, 0.75, 0.6);
+    this.sunLight.specular = new Color3(0.5, 0.45, 0.35);
 
     console.log('[Atmosphere] HDRI skybox + IBL initialized');
   }
@@ -65,17 +66,12 @@ export class BabylonAtmosphereRenderer {
     this.scene.fogColor = toColor3(sky.horizonColor);
 
     this.ambientLight.diffuse = toColor3(ambientColor);
-    this.ambientLight.intensity = Math.max(0.15, ambientIntensity);
-    this.ambientLight.groundColor = new Color3(
-      ambientColor.r * 0.4,
-      ambientColor.g * 0.4,
-      ambientColor.b * 0.4
-    );
+    this.ambientLight.intensity = Math.max(0.05, ambientIntensity * 0.3);
 
     const sunDir = toVec3(sky.sunDirection);
     this.sunLight.direction = sunDir;
     this.sunLight.diffuse = toColor3(directionalColor);
-    this.sunLight.intensity = Math.max(0, directionalIntensity);
+    this.sunLight.intensity = Math.max(0, directionalIntensity * 0.6);
 
     this.scene.clearColor = new Color4(
       sky.horizonColor.r,
