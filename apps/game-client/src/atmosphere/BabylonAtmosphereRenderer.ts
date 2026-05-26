@@ -230,11 +230,10 @@ export class BabylonAtmosphereRenderer {
     this.skyMaterial.setFloat('starVisibility', sky.starVisibility);
     this.skyMaterial.setFloat('exposure', sky.exposure);
 
-    // --- Distance fog (linear for predictable distance control) ---
-    const distFog = fog.distance;
+    // --- Distance fog (linear — start far enough to show terrain, end before chunk edge) ---
     this.scene.fogMode = Scene.FOGMODE_LINEAR;
-    this.scene.fogStart = distFog.start;
-    this.scene.fogEnd = distFog.end;
+    this.scene.fogStart = 250;
+    this.scene.fogEnd = 450;
     this.scene.fogColor = toColor3(sky.horizonColor);
 
     // --- Ambient (hemispheric) light ---

@@ -161,9 +161,11 @@ export class ChunkedTerrainManager {
     }
 
     const center = this.getChunkWorldCenter(gridX, gridZ);
+    const overlap = 2;
+    const renderSize = this._chunkSize + overlap * 2;
     const mesh = MeshBuilder.CreateGround(
       `terrain_${key}`,
-      { width: this._chunkSize, height: this._chunkSize, subdivisions: targetSubs, updatable: false },
+      { width: renderSize, height: renderSize, subdivisions: targetSubs, updatable: false },
       this.scene
     );
 
@@ -171,7 +173,7 @@ export class ChunkedTerrainManager {
     if (positions) {
       const vertCount = positions.length / 3;
       const colors = new Float32Array(vertCount * 4);
-      const step = this._chunkSize / targetSubs;
+      const step = renderSize / targetSubs;
       const computeSlope = targetSubs >= 8;
 
       for (let i = 0; i < positions.length; i += 3) {
