@@ -1,7 +1,7 @@
 import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
@@ -21,6 +21,69 @@ interface LoadedChunk {
 const WORLD_SEED = new WorldSeed('dracor-world-001');
 const DYNAMIC_CHUNK_SIZE = 100;
 
+const COLOR_DEEP_WATER = new Color4(0.02, 0.05, 0.12, 1);
+const COLOR_SHALLOW_WATER = new Color4(0.05, 0.12, 0.18, 1);
+const COLOR_SAND = new Color4(0.55, 0.48, 0.35, 1);
+const COLOR_GRASS = new Color4(0.12, 0.22, 0.08, 1);
+const COLOR_DARK_GRASS = new Color4(0.08, 0.16, 0.05, 1);
+const COLOR_FOREST_FLOOR = new Color4(0.1, 0.12, 0.06, 1);
+const COLOR_ROCK = new Color4(0.25, 0.24, 0.22, 1);
+const COLOR_DARK_ROCK = new Color4(0.15, 0.14, 0.13, 1);
+const COLOR_SNOW = new Color4(0.75, 0.78, 0.82, 1);
+const COLOR_DIRT = new Color4(0.18, 0.14, 0.09, 1);
+
+function lerpColor(a: Color4, b: Color4, t: number): Color4 {
+  const ct = Math.max(0, Math.min(1, t));
+  return new Color4(
+    a.r + (b.r - a.r) * ct,
+    a.g + (b.g - a.g) * ct,
+    a.b + (b.b - a.b) * ct,
+    1
+  );
+}
+
+function getTerrainColor(height: number, slopeAngle: number): Color4 {
+  if (height < -5) {
+    const t = Math.min(1, (-height - 5) / 30);
+    return lerpColor(COLOR_SHALLOW_WATER, COLOR_DEEP_WATER, t);
+  }
+
+  if (height < 1) {
+    const t = (height + 5) / 6;
+    return lerpColor(COLOR_SHALLOW_WATER, COLOR_SAND, t);
+  }
+
+  if (height < 4) {
+    const t = (height - 1) / 3;
+    return lerpColor(COLOR_SAND, COLOR_GRASS, t);
+  }
+
+  let baseColor: Color4;
+  if (height < 30) {
+    const t = (height - 4) / 26;
+    baseColor = lerpColor(COLOR_GRASS, COLOR_DARK_GRASS, t);
+  } else if (height < 60) {
+    const t = (height - 30) / 30;
+    baseColor = lerpColor(COLOR_DARK_GRASS, COLOR_FOREST_FLOOR, t);
+  } else if (height < 100) {
+    const t = (height - 60) / 40;
+    baseColor = lerpColor(COLOR_FOREST_FLOOR, COLOR_ROCK, t);
+  } else if (height < 140) {
+    const t = (height - 100) / 40;
+    baseColor = lerpColor(COLOR_ROCK, COLOR_SNOW, t);
+  } else {
+    baseColor = COLOR_SNOW;
+  }
+
+  if (slopeAngle > 25) {
+    const rockBlend = Math.min(1, (slopeAngle - 25) / 20);
+    const rockColor = height > 80 ? COLOR_DARK_ROCK : COLOR_ROCK;
+    baseColor = lerpColor(baseColor, rockColor, rockBlend);
+  }
+
+  return baseColor;
+}
+
 export class ChunkedTerrainManager {
   private scene: Scene;
   private terrain: TerrainDefinition;
@@ -38,10 +101,10 @@ export class ChunkedTerrainManager {
     this._chunkSize = DYNAMIC_CHUNK_SIZE;
 
     this.material = new StandardMaterial('terrainMat', scene);
-    this.material.diffuseColor = new Color3(0.14, 0.13, 0.09);
-    this.material.specularColor = new Color3(0.01, 0.01, 0.01);
+    this.material.diffuseColor = new Color3(1, 1, 1);
+    this.material.specularColor = new Color3(0.02, 0.02, 0.02);
     this.material.roughness = 1.0;
-    this.material.ambientColor = new Color3(0.04, 0.05, 0.03);
+    this.material.ambientColor = new Color3(0.3, 0.3, 0.3);
   }
 
   worldToGrid(worldX: number, worldZ: number): { gridX: number; gridZ: number } {
@@ -105,12 +168,32 @@ export class ChunkedTerrainManager {
 
     const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
     if (positions) {
+      const vertCount = positions.length / 3;
+      const colors = new Float32Array(vertCount * 4);
+      const step = this._chunkSize / targetSubs;
+
       for (let i = 0; i < positions.length; i += 3) {
         const worldX = positions[i] + center.x;
         const worldZ = positions[i + 2] + center.z;
-        positions[i + 1] = this.chunkGen.getHeightAt(worldX, worldZ);
+        const h = this.chunkGen.getHeightAt(worldX, worldZ);
+        positions[i + 1] = h;
+
+        const hR = this.chunkGen.getHeightAt(worldX + step, worldZ);
+        const hF = this.chunkGen.getHeightAt(worldX, worldZ + step);
+        const slopeX = (hR - h) / step;
+        const slopeZ = (hF - h) / step;
+        const slopeAngle = Math.atan(Math.sqrt(slopeX * slopeX + slopeZ * slopeZ)) * (180 / Math.PI);
+
+        const color = getTerrainColor(h, slopeAngle);
+        const vi = (i / 3) * 4;
+        colors[vi] = color.r;
+        colors[vi + 1] = color.g;
+        colors[vi + 2] = color.b;
+        colors[vi + 3] = 1;
       }
+
       mesh.updateVerticesData(VertexBuffer.PositionKind, positions);
+      mesh.setVerticesData(VertexBuffer.ColorKind, colors);
       mesh.createNormals(false);
     }
 

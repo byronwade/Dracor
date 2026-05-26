@@ -139,7 +139,17 @@ export class StreamingManager {
     this.terrain = new ChunkedTerrainManager(scene, manifest.terrain, this.config);
 
     const maxMB = quality.tier === 'ultra' ? 1024 : quality.tier === 'high' ? 512 : quality.tier === 'medium' ? 256 : 128;
-    this.vramBudget = new VRAMBudgetManager(maxMB);
+    this.vramBudget = new VRAMBudgetManager(maxMB, (asset) => {
+      // Parse cellId "gridX_gridZ" and unload the terrain chunk
+      const parts = asset.cellId.split('_');
+      if (parts.length === 2) {
+        const gridX = parseInt(parts[0], 10);
+        const gridZ = parseInt(parts[1], 10);
+        if (!isNaN(gridX) && !isNaN(gridZ)) {
+          this.terrain.unloadChunk(gridX, gridZ);
+        }
+      }
+    });
     this.exclusions = buildExclusionData(manifest);
 
     this.foliage = new FoliageStreamingManager(
@@ -153,14 +163,6 @@ export class StreamingManager {
     console.log('[Streaming] Loading initial area...');
 
     const sky = createSkyAndAtmosphere(this.scene, this.quality);
-    const h = this.terrain.getHeightAt;
-    createDistantMountains(this.scene, h);
-    for (const road of this.manifest.roads) createRoadFromManifest(road, this.scene, h);
-    for (const landmark of this.manifest.landmarks) {
-      if (landmark.type === 'shrine') createShrineFromManifest(landmark, this.scene, h);
-      else createLandmarksFromManifest(landmark, this.scene, h);
-    }
-    for (const water of this.manifest.water) createWater(water, this.scene, h);
 
     await this.foliage.generateAllPlacements(
       this.manifest.foliage, this.manifest.rocks, this.exclusions
@@ -204,10 +206,6 @@ export class StreamingManager {
       loadingCells: 0,
       vramUsage: this.vramBudget.getUsage(),
     };
-  }
-
-  getHeightAt(): HeightSampler {
-    return this.terrain.getHeightAt;
   }
 
   dispose(): void {

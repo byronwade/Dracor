@@ -13,7 +13,7 @@ import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import '@babylonjs/core/Meshes/Builders/boxBuilder';
 import '@babylonjs/core/Meshes/Builders/planeBuilder';
 
-import { loadZoneFromManifest, type ZoneLoadResult } from '../world/loadZoneFromManifest';
+import { StreamingManager, type StreamingSceneResult } from '../streaming/StreamingManager';
 
 // ─── Locally-embedded types (from workspace packages, not imported at runtime) ───
 
@@ -282,7 +282,31 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
   playerSpawn: { x: 0, y: 0, z: 10, yaw: 0 },
   terrain: {
     chunks: [
+      { id: 'chunk_0_0', gridX: 0, gridZ: 0, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_1_0', gridX: 1, gridZ: 0, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_2_0', gridX: 2, gridZ: 0, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_3_0', gridX: 3, gridZ: 0, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_4_0', gridX: 4, gridZ: 0, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_0_1', gridX: 0, gridZ: 1, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_1_1', gridX: 1, gridZ: 1, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_2_1', gridX: 2, gridZ: 1, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_3_1', gridX: 3, gridZ: 1, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_4_1', gridX: 4, gridZ: 1, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_0_2', gridX: 0, gridZ: 2, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_1_2', gridX: 1, gridZ: 2, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
       { id: 'chunk_2_2', gridX: 2, gridZ: 2, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_3_2', gridX: 3, gridZ: 2, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_4_2', gridX: 4, gridZ: 2, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_0_3', gridX: 0, gridZ: 3, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_1_3', gridX: 1, gridZ: 3, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_2_3', gridX: 2, gridZ: 3, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_3_3', gridX: 3, gridZ: 3, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_4_3', gridX: 4, gridZ: 3, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_0_4', gridX: 0, gridZ: 4, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_1_4', gridX: 1, gridZ: 4, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_2_4', gridX: 2, gridZ: 4, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_3_4', gridX: 3, gridZ: 4, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
+      { id: 'chunk_4_4', gridX: 4, gridZ: 4, size: 100, resolution: 64, heightData: 'procedural', lodLevels: 3 },
     ],
     materialId: 'mat_ironvale_ground',
     heightScale: 30,
@@ -550,29 +574,33 @@ export interface IronvaleSceneResult {
   getHeightAt: (x: number, z: number) => number;
   dayNight: DayNightCycle;
   updateWind: (dt: number) => void;
+  streamingManager: StreamingManager;
 }
 
-/**
- * Build the complete Ironvale Outskirts scene.
- */
 export async function buildIronvaleOutskirtsScene(
   engine: Engine,
   quality: QualitySettings
 ): Promise<IronvaleSceneResult> {
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0.02, 0.015, 0.03, 1.0);
+  scene.clearColor = new Color4(0.45, 0.52, 0.62, 1.0);
   scene.fogMode = Scene.FOGMODE_EXP2;
-  scene.fogDensity = 0.012;
-  scene.fogColor = new Color3(0.3, 0.32, 0.38);
-  scene.ambientColor = new Color3(0.1, 0.1, 0.12);
+  scene.fogDensity = 0.006;
+  scene.fogColor = new Color3(0.45, 0.52, 0.62);
+  scene.ambientColor = new Color3(0.15, 0.15, 0.18);
 
   const dayNight = new DayNightCycle(scene, quality, 0.38);
 
-  const zoneResult = await loadZoneFromManifest(IRONVALE_OUTSKIRTS, scene, quality);
+  const streamingManager = new StreamingManager(scene, quality, IRONVALE_OUTSKIRTS);
+  const spawnPos = new Vector3(
+    IRONVALE_OUTSKIRTS.playerSpawn.x,
+    IRONVALE_OUTSKIRTS.playerSpawn.y,
+    IRONVALE_OUTSKIRTS.playerSpawn.z
+  );
+  const streamResult = await streamingManager.loadInitialArea(spawnPos);
 
-  dayNight.bindSky(zoneResult.sky.skyMat, zoneResult.sky.horizonMat);
+  dayNight.bindSky(streamResult.sky.skyboxMaterial, streamResult.sky.horizonMat);
 
-  createTownLights(scene, zoneResult.terrain.getHeightAt);
+  createTownLights(scene, streamResult.getHeightAt);
 
   if (quality.postProcessingEnabled) {
     setupPostProcessing(scene, quality, dayNight);
@@ -580,9 +608,10 @@ export async function buildIronvaleOutskirtsScene(
 
   return {
     scene,
-    getHeightAt: zoneResult.terrain.getHeightAt,
+    getHeightAt: streamResult.getHeightAt,
     dayNight,
-    updateWind: zoneResult.updateWind,
+    updateWind: streamResult.updateWind,
+    streamingManager,
   };
 }
 
