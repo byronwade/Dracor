@@ -153,20 +153,10 @@ export class FoliageStreamingManager {
       if (mesh) {
         if (mesh.material) {
           const mat = mesh.material as any;
-          if (mat.transparencyMode !== undefined) {
-            mat.transparencyMode = 1;
-          }
-          if (mat.alphaMode !== undefined) {
-            mat.alphaMode = 1;
-          }
           if (mat.backFaceCulling !== undefined) {
             mat.backFaceCulling = false;
           }
-          if (mat.forceDepthWrite !== undefined) {
-            mat.forceDepthWrite = true;
-          }
         }
-        mesh.hasVertexAlpha = false;
         mesh.isVisible = false;
         mesh.setEnabled(false);
         return mesh;
