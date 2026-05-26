@@ -658,30 +658,31 @@ function setupPostProcessing(scene: Scene, quality: QualitySettings): void {
 
     pipeline.bloomEnabled = quality.bloomEnabled;
     if (quality.bloomEnabled) {
-      pipeline.bloomThreshold = 0.7;
-      pipeline.bloomWeight = 0.35;
+      pipeline.bloomThreshold = 0.8;
+      pipeline.bloomWeight = 0.15;
       pipeline.bloomKernel = 64;
     }
 
     pipeline.imageProcessingEnabled = true;
-    pipeline.imageProcessingEnabled = true;
     pipeline.imageProcessing.toneMappingEnabled = true;
     pipeline.imageProcessing.toneMappingType = 2;
-    pipeline.imageProcessing.exposure = 0.85;
-    pipeline.imageProcessing.contrast = 1.15;
+    pipeline.imageProcessing.exposure = 0.9;
+    pipeline.imageProcessing.contrast = 1.2;
 
     pipeline.imageProcessing.vignetteEnabled = true;
-    pipeline.imageProcessing.vignetteWeight = 1.8;
-    pipeline.imageProcessing.vignetteCameraFov = 0.5;
+    pipeline.imageProcessing.vignetteWeight = 2.5;
+    pipeline.imageProcessing.vignetteCameraFov = 0.6;
+
+    pipeline.depthOfFieldEnabled = false;
 
     pipeline.grainEnabled = true;
-    pipeline.grain.intensity = 6;
+    pipeline.grain.intensity = 4;
     pipeline.grain.animated = true;
 
     pipeline.chromaticAberrationEnabled = quality.tier === 'ultra';
     if (pipeline.chromaticAberrationEnabled) {
-      pipeline.chromaticAberration.aberrationAmount = 15;
-      pipeline.chromaticAberration.radialIntensity = 0.5;
+      pipeline.chromaticAberration.aberrationAmount = 8;
+      pipeline.chromaticAberration.radialIntensity = 0.3;
     }
 
   });

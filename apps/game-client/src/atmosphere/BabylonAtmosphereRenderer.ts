@@ -4,12 +4,10 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
+import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { HDRCubeTexture } from '@babylonjs/core/Materials/Textures/hdrCubeTexture';
-import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
-import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
-import { Texture } from '@babylonjs/core/Materials/Textures/texture';
-import { CubeTexture } from '@babylonjs/core/Materials/Textures/cubeTexture';
 import '@babylonjs/core/Helpers/sceneHelpers';
+import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import { type AtmosphereState, type Color3 as AtmoColor3 } from '@dracor/atmosphere';
 
 function toColor3(c: AtmoColor3): Color3 {
@@ -25,6 +23,7 @@ export class BabylonAtmosphereRenderer {
   private skybox: Mesh | null = null;
   private sunLight: DirectionalLight;
   private ambientLight: HemisphericLight;
+  private shadowGenerator: ShadowGenerator | null = null;
 
   constructor(scene: Scene) {
     this.scene = scene;
@@ -53,8 +52,31 @@ export class BabylonAtmosphereRenderer {
     this.sunLight.intensity = 1.0;
     this.sunLight.diffuse = new Color3(1.0, 0.9, 0.75);
     this.sunLight.specular = new Color3(0.5, 0.45, 0.35);
+    this.sunLight.shadowMinZ = 1;
+    this.sunLight.shadowMaxZ = 300;
 
-    console.log('[Atmosphere] HDRI skybox + IBL initialized');
+    this.shadowGenerator = new ShadowGenerator(1024, this.sunLight);
+    this.shadowGenerator.useBlurExponentialShadowMap = true;
+    this.shadowGenerator.blurKernel = 16;
+    this.shadowGenerator.depthScale = 50;
+    this.shadowGenerator.setDarkness(0.4);
+
+    for (const mesh of scene.meshes) {
+      if (mesh.name.startsWith('foliage_fir')) {
+        this.shadowGenerator.addShadowCaster(mesh);
+      }
+    }
+
+    scene.onNewMeshAddedObservable.add((mesh) => {
+      if (mesh.name.startsWith('foliage_fir') && this.shadowGenerator) {
+        this.shadowGenerator.addShadowCaster(mesh);
+      }
+      if (mesh.name.startsWith('terrain_')) {
+        mesh.receiveShadows = true;
+      }
+    });
+
+    console.log('[Atmosphere] HDRI skybox + IBL + shadows initialized');
   }
 
   update(state: AtmosphereState): void {
@@ -82,6 +104,7 @@ export class BabylonAtmosphereRenderer {
   }
 
   dispose(): void {
+    if (this.shadowGenerator) this.shadowGenerator.dispose();
     if (this.skybox) this.skybox.dispose();
     this.sunLight.dispose();
     this.ambientLight.dispose();
