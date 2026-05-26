@@ -15,22 +15,22 @@ export interface StreamingSceneResult {
 
 const STREAMING_CONFIGS: Record<string, StreamingConfig> = {
   ultra: {
-    loadDistance: 600,
-    unloadDistance: 700,
-    maxLoadedCells: 120,
+    loadDistance: 500,
+    unloadDistance: 600,
+    maxLoadedCells: 100,
     maxConcurrentLoads: 8,
     rebuildThreshold: 15,
     foliageDensityFalloff: [
       { distance: 80, density: 1.0 },
       { distance: 150, density: 0.6 },
-      { distance: 300, density: 0.3 },
-      { distance: 500, density: 0.1 },
+      { distance: 250, density: 0.3 },
+      { distance: 400, density: 0.1 },
     ],
     terrainLODDistances: [
-      { distance: 100, subdivisions: 32 },
-      { distance: 250, subdivisions: 16 },
-      { distance: 400, subdivisions: 8 },
-      { distance: 600, subdivisions: 4 },
+      { distance: 120, subdivisions: 32 },
+      { distance: 250, subdivisions: 24 },
+      { distance: 400, subdivisions: 16 },
+      { distance: 500, subdivisions: 8 },
     ],
   },
   high: {

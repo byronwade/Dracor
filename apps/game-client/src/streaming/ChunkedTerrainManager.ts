@@ -199,6 +199,7 @@ export class ChunkedTerrainManager {
 
       mesh.updateVerticesData(VertexBuffer.PositionKind, positions);
       mesh.setVerticesData(VertexBuffer.ColorKind, colors);
+      mesh.hasVertexAlpha = false;
       mesh.createNormals(false);
     }
 
