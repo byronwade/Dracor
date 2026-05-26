@@ -1,5 +1,5 @@
 import { createFractalNoise2D, createRidgeNoise2D, createWarpedNoise2D, type NoiseFn2D } from './noise';
-import { createContinentalMap, isLand, type ContinentalFn } from './continental';
+import { createContinentalMap, type ContinentalFn } from './continental';
 import { hashCombine, type WorldSeed } from './seed';
 import { SEA_LEVEL, MIN_HEIGHT, MAX_HEIGHT } from './config';
 
@@ -21,43 +21,38 @@ export function createElevationMap(worldSeed: WorldSeed): ElevationMapResult {
   const baseNoise = createWarpedNoise2D(elevSeed, 6, 0.3);
   const mountainNoise = createRidgeNoise2D(mountSeed, 4, 2.2, 0.55);
   const mountainMask = createFractalNoise2D(hashCombine(mountSeed, 88888), 3);
-  const detailNoise = createFractalNoise2D(detailSeed, 4, 2.5, 0.4);
+
+  const hillNoise = createFractalNoise2D(hashCombine(detailSeed, 22222), 4, 2.0, 0.5);
+  const bumpNoise = createFractalNoise2D(hashCombine(detailSeed, 33333), 3, 2.5, 0.45);
+  const microNoise = createFractalNoise2D(detailSeed, 2, 3.0, 0.3);
+
   const plateauNoise = createFractalNoise2D(hashCombine(elevSeed, 11111), 2, 1.8, 0.7);
-
-  const baseFreq = 0.0006;
-  const mountFreq = 0.0003;
-  const mountMaskFreq = 0.00015;
-  const detailFreq = 0.003;
-  const plateauFreq = 0.0004;
-
-  const baseAmplitude = 40;
-  const mountAmplitude = 120;
-  const detailAmplitude = 5;
 
   const getElevation = (worldX: number, worldZ: number): number => {
     const cont = continental(worldX, worldZ);
 
     if (cont < 0.05) {
       const oceanDepth = SEA_LEVEL + MIN_HEIGHT * (1 - cont / 0.05);
-      const oceanDetail = detailNoise(worldX * detailFreq, worldZ * detailFreq) * 3;
+      const oceanDetail = microNoise(worldX * 0.005, worldZ * 0.005) * 3;
       return oceanDepth + oceanDetail;
     }
 
-    const landFactor = Math.min(1, (cont - 0.35) / 0.3);
     const coastFactor = smoothstep01(Math.max(0, Math.min(1, (cont - 0.2) / 0.3)));
 
-    const base = baseNoise(worldX * baseFreq, worldZ * baseFreq) * baseAmplitude;
+    const base = baseNoise(worldX * 0.0006, worldZ * 0.0006) * 40;
 
-    const mMask = (mountainMask(worldX * mountMaskFreq, worldZ * mountMaskFreq) + 1) * 0.5;
-    const mRaw = mountainNoise(worldX * mountFreq, worldZ * mountFreq);
-    const mountains = mRaw * mountAmplitude * Math.pow(mMask, 2.5);
+    const mMask = (mountainMask(worldX * 0.00015, worldZ * 0.00015) + 1) * 0.5;
+    const mRaw = mountainNoise(worldX * 0.0003, worldZ * 0.0003);
+    const mountains = mRaw * 120 * Math.pow(mMask, 2.5);
 
-    const detail = detailNoise(worldX * detailFreq, worldZ * detailFreq) * detailAmplitude;
+    const hills = hillNoise(worldX * 0.003, worldZ * 0.003) * 15;
+    const bumps = bumpNoise(worldX * 0.01, worldZ * 0.01) * 5;
+    const micro = microNoise(worldX * 0.04, worldZ * 0.04) * 1.5;
 
-    const plateau = plateauNoise(worldX * plateauFreq, worldZ * plateauFreq);
+    const plateau = plateauNoise(worldX * 0.0004, worldZ * 0.0004);
     const plateauEffect = Math.max(0, plateau) * 25;
 
-    let elevation = base + mountains + detail + plateauEffect;
+    let elevation = base + mountains + hills + bumps + micro + plateauEffect;
 
     elevation *= coastFactor;
 

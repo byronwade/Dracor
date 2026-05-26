@@ -151,8 +151,6 @@ export class FoliageStreamingManager {
 
       const mesh = await loadModel(group.modelId, this.scene, config);
       if (mesh) {
-        const windMat = createWindMaterial(this.scene, mesh.material, group.modelId);
-        mesh.material = windMat;
         mesh.isVisible = false;
         mesh.setEnabled(false);
         return mesh;
@@ -175,7 +173,10 @@ export class FoliageStreamingManager {
     this.rebuildAllBuffers(playerPosition);
   }
 
+  private rebuildCount = 0;
   private rebuildAllBuffers(playerPosition: Vector3): void {
+    const isFirst = this.rebuildCount === 0;
+    this.rebuildCount++;
     for (const [groupId, data] of this.globalPlacements) {
       const sourceMesh = this.sourceMeshes.get(data.sourceKey);
       if (!sourceMesh) continue;
@@ -199,14 +200,17 @@ export class FoliageStreamingManager {
         for (let j = 0; j < 16; j++) filtered.push(all[i + j]);
       }
 
-      if (filtered.length > 0) {
+      const instanceCount = filtered.length / 16;
+      if (isFirst) {
+        console.log(`[Foliage] ${groupId}: ${instanceCount}/${data.allMatrices.length / 16} instances in range, mesh: ${sourceMesh.name}, visible: ${instanceCount > 0}`);
+      }
+      if (instanceCount > 0) {
         sourceMesh.isVisible = true;
         sourceMesh.setEnabled(true);
         sourceMesh.thinInstanceSetBuffer('matrix', new Float32Array(filtered), 16, false);
       } else {
         sourceMesh.isVisible = false;
         sourceMesh.setEnabled(false);
-        sourceMesh.thinInstanceSetBuffer('matrix', new Float32Array(0), 16, false);
       }
     }
   }
