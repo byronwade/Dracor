@@ -9,7 +9,11 @@ import '@babylonjs/core/Meshes/Builders/groundBuilder';
 
 import type { TerrainDefinition, TerrainChunkDef } from '../scenes/IronvaleOutskirtsScene';
 import type { HeightSampler, StreamingConfig } from './types';
-import { WorldSeed, ChunkGenerator } from '@dracor/world-gen';
+import {
+  WorldSeed, ChunkGenerator,
+  createElevationMap, createClimateMap, createBiomeResolver,
+  type BiomeType, type BiomeResolver,
+} from '@dracor/world-gen';
 
 interface LoadedChunk {
   mesh: Mesh;
@@ -21,96 +25,59 @@ interface LoadedChunk {
 const WORLD_SEED = new WorldSeed('dracor-world-001');
 const DYNAMIC_CHUNK_SIZE = 100;
 
-function hashPos(x: number, z: number): number {
+function noise(x: number, z: number): number {
   let h = ((x * 374761393) ^ (z * 668265263)) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff;
 }
 
-function hashPos2(x: number, z: number): number {
-  let h = ((x * 123456789) ^ (z * 987654321)) | 0;
-  h = Math.imul(h ^ (h >>> 15), 2654435769);
-  return ((h ^ (h >>> 13)) & 0x7fffffff) / 0x7fffffff;
-}
+const BIOME_COLORS: Record<string, [number, number, number, number, number, number]> = {
+  deep_ocean:      [0.03, 0.06, 0.18,  0.05, 0.10, 0.25],
+  shallow_ocean:   [0.06, 0.15, 0.30,  0.10, 0.22, 0.40],
+  beach:           [0.70, 0.65, 0.48,  0.78, 0.72, 0.55],
+  tropical_beach:  [0.75, 0.70, 0.50,  0.82, 0.75, 0.55],
+  grassland:       [0.30, 0.50, 0.18,  0.45, 0.58, 0.22],
+  plains:          [0.42, 0.52, 0.22,  0.55, 0.60, 0.28],
+  forest:          [0.15, 0.35, 0.10,  0.25, 0.45, 0.15],
+  dense_forest:    [0.10, 0.25, 0.08,  0.18, 0.35, 0.10],
+  pine_forest:     [0.12, 0.30, 0.12,  0.20, 0.38, 0.18],
+  jungle:          [0.08, 0.30, 0.06,  0.15, 0.40, 0.10],
+  swamp:           [0.18, 0.25, 0.12,  0.28, 0.32, 0.18],
+  desert:          [0.72, 0.60, 0.35,  0.82, 0.68, 0.42],
+  badlands:        [0.60, 0.38, 0.20,  0.72, 0.45, 0.25],
+  savanna:         [0.55, 0.52, 0.25,  0.65, 0.58, 0.30],
+  tundra:          [0.50, 0.55, 0.48,  0.60, 0.62, 0.55],
+  snowy_peaks:     [0.82, 0.85, 0.88,  0.92, 0.94, 0.96],
+  mountain:        [0.38, 0.36, 0.32,  0.50, 0.48, 0.44],
+  alpine_meadow:   [0.35, 0.50, 0.25,  0.45, 0.58, 0.30],
+  volcanic:        [0.22, 0.18, 0.15,  0.35, 0.25, 0.20],
+  wetlands:        [0.20, 0.32, 0.15,  0.30, 0.40, 0.20],
+  cliff:           [0.35, 0.33, 0.30,  0.48, 0.46, 0.42],
+  river_valley:    [0.22, 0.38, 0.15,  0.32, 0.48, 0.20],
+};
 
-function lerpC(ar: number, ag: number, ab: number, br: number, bg: number, bb: number, t: number): Color4 {
-  const ct = t < 0 ? 0 : t > 1 ? 1 : t;
-  return new Color4(ar + (br - ar) * ct, ag + (bg - ag) * ct, ab + (bb - ab) * ct, 1);
-}
+function getBiomeColor(biome: BiomeType, slopeAngle: number, wx: number, wz: number): Color4 {
+  const palette = BIOME_COLORS[biome] ?? BIOME_COLORS.grassland;
+  const n1 = noise(Math.floor(wx * 0.12), Math.floor(wz * 0.12));
+  const n2 = noise(Math.floor(wx * 0.35), Math.floor(wz * 0.35));
+  const n3 = noise(Math.floor(wx * 0.06), Math.floor(wz * 0.06));
 
-function getTerrainColor(height: number, slopeAngle: number, worldX: number, worldZ: number): Color4 {
-  const n1 = hashPos(Math.floor(worldX * 0.15), Math.floor(worldZ * 0.15));
-  const n2 = hashPos2(Math.floor(worldX * 0.05), Math.floor(worldZ * 0.05));
-  const n3 = hashPos(Math.floor(worldX * 0.4), Math.floor(worldZ * 0.4));
+  let r = palette[0] + (palette[3] - palette[0]) * n1;
+  let g = palette[1] + (palette[4] - palette[1]) * n2;
+  let b = palette[2] + (palette[5] - palette[2]) * n3;
 
-  if (height < -5) {
-    const t = Math.min(1, (-height - 5) / 30);
-    return lerpC(0.08, 0.20, 0.35, 0.03, 0.08, 0.20, t);
+  const dirtChance = n3 > 0.72 ? (n3 - 0.72) / 0.28 : 0;
+  if (dirtChance > 0 && biome !== 'deep_ocean' && biome !== 'shallow_ocean' && biome !== 'snowy_peaks') {
+    r = r + (0.40 - r) * dirtChance * 0.4;
+    g = g + (0.30 - g) * dirtChance * 0.4;
+    b = b + (0.18 - b) * dirtChance * 0.4;
   }
 
-  if (height < 1) {
-    const t = (height + 5) / 6;
-    const sandVar = n1 * 0.1;
-    return lerpC(0.08, 0.20, 0.35, 0.72 + sandVar, 0.65 + sandVar, 0.48 + sandVar * 0.5, t);
-  }
-
-  if (height < 5) {
-    const t = (height - 1) / 4;
-    return lerpC(0.72, 0.65, 0.48, 0.45 + n1 * 0.15, 0.55 + n2 * 0.1, 0.25, t);
-  }
-
-  let r: number, g: number, b: number;
-
-  if (height < 20) {
-    const dirtPatch = n2 > 0.7 ? (n2 - 0.7) / 0.3 : 0;
-    const yellowGrass = n1 > 0.6 ? (n1 - 0.6) / 0.4 : 0;
-    r = 0.25 + n3 * 0.08 + dirtPatch * 0.2 + yellowGrass * 0.15;
-    g = 0.48 + n1 * 0.1 - dirtPatch * 0.15 + yellowGrass * 0.05;
-    b = 0.15 + n3 * 0.05 - dirtPatch * 0.05;
-  } else if (height < 40) {
-    const t = (height - 20) / 20;
-    const darkPatch = n1 > 0.5 ? (n1 - 0.5) * 0.3 : 0;
-    r = 0.18 + n3 * 0.06 - t * 0.04 - darkPatch;
-    g = 0.38 + n2 * 0.08 - t * 0.08 - darkPatch;
-    b = 0.10 + n1 * 0.04 + darkPatch * 0.02;
-  } else if (height < 65) {
-    const t = (height - 40) / 25;
-    r = 0.20 + n3 * 0.08 + t * 0.10;
-    g = 0.28 + n1 * 0.06 - t * 0.06;
-    b = 0.12 + n2 * 0.04 + t * 0.04;
-  } else if (height < 100) {
-    const t = (height - 65) / 35;
-    const mossBlend = n2 > 0.6 ? (n2 - 0.6) * 0.5 : 0;
-    r = 0.38 + n3 * 0.08 + t * 0.10 - mossBlend * 0.1;
-    g = 0.36 + n1 * 0.06 - t * 0.04 + mossBlend * 0.08;
-    b = 0.32 + n2 * 0.06 + t * 0.08 - mossBlend * 0.05;
-  } else if (height < 140) {
-    const t = (height - 100) / 40;
-    const dirtShow = n1 > 0.7 ? (n1 - 0.7) * 0.4 : 0;
-    r = 0.55 + t * 0.30 + n3 * 0.05 - dirtShow * 0.15;
-    g = 0.53 + t * 0.32 + n1 * 0.04 - dirtShow * 0.10;
-    b = 0.48 + t * 0.35 + n2 * 0.04;
-  } else {
-    r = 0.88 + n3 * 0.06;
-    g = 0.90 + n1 * 0.05;
-    b = 0.92 + n2 * 0.04;
-  }
-
-  if (slopeAngle > 15) {
-    const rockBlend = Math.min(1, (slopeAngle - 15) / 25);
-    const rockR = 0.40 + n3 * 0.10;
-    const rockG = 0.38 + n1 * 0.08;
-    const rockB = 0.35 + n2 * 0.06;
-    r = r + (rockR - r) * rockBlend;
-    g = g + (rockG - g) * rockBlend;
-    b = b + (rockB - b) * rockBlend;
-  }
-
-  if (slopeAngle > 5 && slopeAngle < 20 && height > 5 && height < 60) {
-    const dirtBlend = Math.min(1, (slopeAngle - 5) / 15) * 0.3 * n2;
-    r = r + (0.42 - r) * dirtBlend;
-    g = g + (0.32 - g) * dirtBlend;
-    b = b + (0.20 - b) * dirtBlend;
+  if (slopeAngle > 12) {
+    const rockBlend = Math.min(1, (slopeAngle - 12) / 25);
+    r = r + (0.42 + n1 * 0.08 - r) * rockBlend;
+    g = g + (0.40 + n2 * 0.06 - g) * rockBlend;
+    b = b + (0.36 + n3 * 0.05 - b) * rockBlend;
   }
 
   return new Color4(
@@ -128,6 +95,7 @@ export class ChunkedTerrainManager {
   private loadedChunks = new Map<string, LoadedChunk>();
   private material: StandardMaterial;
   private chunkGen: ChunkGenerator;
+  private biomeResolver: BiomeResolver;
   private _chunkSize: number;
 
   constructor(scene: Scene, terrain: TerrainDefinition, config: StreamingConfig) {
@@ -136,6 +104,10 @@ export class ChunkedTerrainManager {
     this.config = config;
     this.chunkGen = new ChunkGenerator(WORLD_SEED, 512);
     this._chunkSize = DYNAMIC_CHUNK_SIZE;
+
+    const elevMap = createElevationMap(WORLD_SEED);
+    const climate = createClimateMap(WORLD_SEED, elevMap.getElevation, elevMap.getContinental);
+    this.biomeResolver = createBiomeResolver(WORLD_SEED, elevMap.getElevation, elevMap.getContinental, climate);
 
     this.material = new StandardMaterial('terrainMat', scene);
     this.material.diffuseColor = new Color3(1, 1, 1);
@@ -228,7 +200,8 @@ export class ChunkedTerrainManager {
           slopeAngle = Math.atan(Math.sqrt(slopeX * slopeX + slopeZ * slopeZ)) * (180 / Math.PI);
         }
 
-        const color = getTerrainColor(h, slopeAngle, worldX, worldZ);
+        const biome = this.biomeResolver.getBiomeType(worldX, worldZ);
+        const color = getBiomeColor(biome, slopeAngle, worldX, worldZ);
         const vi = (i / 3) * 4;
         colors[vi] = color.r;
         colors[vi + 1] = color.g;
