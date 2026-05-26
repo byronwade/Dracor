@@ -171,6 +171,7 @@ export class ChunkedTerrainManager {
       const vertCount = positions.length / 3;
       const colors = new Float32Array(vertCount * 4);
       const step = this._chunkSize / targetSubs;
+      const computeSlope = targetSubs >= 8;
 
       for (let i = 0; i < positions.length; i += 3) {
         const worldX = positions[i] + center.x;
@@ -178,11 +179,14 @@ export class ChunkedTerrainManager {
         const h = this.chunkGen.getHeightAt(worldX, worldZ);
         positions[i + 1] = h;
 
-        const hR = this.chunkGen.getHeightAt(worldX + step, worldZ);
-        const hF = this.chunkGen.getHeightAt(worldX, worldZ + step);
-        const slopeX = (hR - h) / step;
-        const slopeZ = (hF - h) / step;
-        const slopeAngle = Math.atan(Math.sqrt(slopeX * slopeX + slopeZ * slopeZ)) * (180 / Math.PI);
+        let slopeAngle = 0;
+        if (computeSlope) {
+          const hR = this.chunkGen.getHeightAt(worldX + step, worldZ);
+          const hF = this.chunkGen.getHeightAt(worldX, worldZ + step);
+          const slopeX = (hR - h) / step;
+          const slopeZ = (hF - h) / step;
+          slopeAngle = Math.atan(Math.sqrt(slopeX * slopeX + slopeZ * slopeZ)) * (180 / Math.PI);
+        }
 
         const color = getTerrainColor(h, slopeAngle);
         const vi = (i / 3) * 4;
