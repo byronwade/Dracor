@@ -6,7 +6,7 @@ import { Material } from '@babylonjs/core/Materials/material';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector2, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import '@babylonjs/core/Shaders/ShadersInclude/instancesDeclaration';
 import '@babylonjs/core/Shaders/ShadersInclude/instancesVertex';
 
@@ -196,6 +196,6 @@ export function updateWind(deltaTime: number): void {
     mat.setFloat('windTime', wind.time);
     mat.setFloat('windStrength', wind.strength);
     mat.setFloat('windSpeed', wind.speed);
-    mat.setFloat2('windDirection', wind.directionX, wind.directionZ);
+    mat.setVector2('windDirection', new Vector2(wind.directionX, wind.directionZ));
   }
 }
