@@ -176,6 +176,9 @@ export const RACES: Race[] = [
     description:
       'The last pure humans of the frontier — hardened, adaptive, and relentlessly resourceful. What they lack in supernatural gifts, they make up for in sheer determination and versatility.',
     lore: 'When the dragons fell and the world burned, most humans died. Those who survived did so through cunning, cooperation, and an iron refusal to lie down. The Ashwalkers are their descendants — generations tempered by hardship into something harder than steel. They have no magic in their blood, no ancient gifts. What they have is each other, their wits, and an unbreakable will to endure.',
+    role: 'support',
+    difficulty: 1,
+    playstyle: 'Versatile all-rounder. No weakness, no spike. Rally Cry makes groups stronger. Best pick for players who want to adapt to any situation.',
     traits: [
       'Weathered features that speak of hard roads',
       'Scarred hands that know every weapon',
@@ -228,6 +231,9 @@ export const RACES: Race[] = [
     description:
       'When the dragons died, their death-screams tore holes in reality. Some mortals were caught in those rifts and returned... changed. The Voidtouched exist partially in another dimension, giving them terrifying arcane power at a terrible cost.',
     lore: 'The Void is not evil — it is absence. The space between stars, the silence between heartbeats, the darkness behind closed eyes. Those touched by it did not choose it; they were simply unlucky enough to be standing where reality tore open. Now they flicker between worlds, their bodies partially translucent, their minds touching thoughts that no mortal was meant to think. Most go mad. Those who survive become something extraordinary.',
+    role: 'caster',
+    difficulty: 5,
+    playstyle: 'Glass cannon mage. Void Rupture is devastating AoE but you are fragile. Requires perfect positioning and cooldown management.',
     traits: [
       'Partially translucent — organs faintly visible',
       'Shadow tendrils drift from extremities',
@@ -281,6 +287,9 @@ export const RACES: Race[] = [
     description:
       'An ancient elven bloodline that survived the Sundering by making a pact with the dying dragons, infusing their blood with draconic essence. Tall, elegant, and dangerously beautiful — the Bloodfane wield arcane power that comes at a price only they are willing to pay.',
     lore: 'Before the dragons fell, the Bloodfane were the Aeltharin — high elves of the Crimson Court, masters of blood magic and political intrigue. When the Sundering came, their queen offered their entire bloodline to a dying dragon in exchange for survival. The dragon accepted, and the Aeltharin were reborn as the Bloodfane — elves whose veins run with liquid fire. They are feared and distrusted, but none can deny their power.',
+    role: 'caster',
+    difficulty: 4,
+    playstyle: 'Blood magic risk/reward. Sacrifice HP for massive spell damage, then lifesteal it back. High skill ceiling — misplay and you kill yourself.',
     traits: [
       'Elongated ears with crimson-tipped points',
       'Veins that glow faintly red beneath porcelain skin',
@@ -333,6 +342,9 @@ export const RACES: Race[] = [
     description:
       'Stocky, indomitable, and ancient beyond reckoning. The Stoneguard are a dwarven people who have lived beneath the mountains since before the dragons even existed. They measure time in geological epochs and grudges in centuries.',
     lore: 'The Stoneguard claim they were carved from the bones of the world itself — and looking at them, it is hard to argue. They predate the dragons, predate the elves, predate every race that walks the surface. When the Sundering shattered the world above, the Stoneguard barely noticed. Their deepholm kingdoms endured, as they always have. Now some venture topside, drawn by curiosity or exile, carrying hammers older than most civilizations.',
+    role: 'tank',
+    difficulty: 2,
+    playstyle: 'Immovable fortress. Highest vitality in the game. Stonewall makes you invincible for 4s. Slow but nearly unkillable.',
     traits: [
       'Dense musculature — twice the weight of a human their size',
       'Beards that grow from birth and are never cut (braided with ore)',
@@ -385,6 +397,9 @@ export const RACES: Race[] = [
     description:
       'Massive, tusked warriors from the scorched grasslands east of the frontier. The Grukhar live for battle — not out of bloodlust, but because their culture teaches that glory in combat is the only path to the afterlife. Every scar is a prayer.',
     lore: 'The Grukhar once ruled a vast steppe empire, but the Sundering turned their homeland into a wasteland of ash and bone. Rather than despair, they took it as a sign from their war-god Gruk: the old world was weak and deserved its death. The strong would build a new one. Now they roam the frontier in war-bands, seeking worthy foes and honourable death. They are not mindless brutes — their battle-poetry is considered the finest oral tradition in the known world.',
+    role: 'striker',
+    difficulty: 3,
+    playstyle: 'Berserker. Gets stronger as you take damage. War Cry breaks enemy defenses. Go in hard, finish fast, or die gloriously.',
     traits: [
       'Towering height with thick green-grey or brown skin',
       'Prominent lower tusks, often decorated with metal caps',
@@ -437,6 +452,9 @@ export const RACES: Race[] = [
     description:
       'Small, cunning, and impossibly fast. The Skrix are a goblin-kin people who survived the Sundering through sheer ingenuity and a complete absence of pride. Where others fight, the Skrix negotiate. Where others build walls, the Skrix build escape tunnels.',
     lore: 'Nobody knows where the Skrix came from — least of all the Skrix themselves, who consider the question irrelevant. "We are here now, yes? That is what matters." They appeared in the ruins after the Sundering like rats after a flood, scavenging, trading, and building improbable contraptions from scrap. They are distrusted by everyone and allied with whoever pays best. Their engineering borders on genius, their morality borders on absent, and their survival instinct is unmatched.',
+    role: 'skirmisher',
+    difficulty: 3,
+    playstyle: 'Evasion trickster. Hardest to hit, dirtiest fighter. Blind enemies, dodge everything, pick pockets between stabs.',
     traits: [
       'Small and wiry, rarely taller than a child',
       'Large pointed ears that swivel toward sound',

@@ -59,41 +59,73 @@ function StepNav({ currentStep, steps }: { currentStep: WizardStep; steps: Wizar
   );
 }
 
-function AnimatedStatBar({
-  label,
-  value,
-  max = 12,
-  color,
-  delay = 0,
-}: {
-  label: string;
-  value: number;
-  max?: number;
-  color: string;
-  delay?: number;
-}) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const t = setTimeout(() => setWidth((value / max) * 100), 100 + delay);
-    return () => clearTimeout(t);
-  }, [value, max, delay]);
+const ROLE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  tank:       { bg: "bg-amber-500/15", text: "text-amber-400", label: "Tank" },
+  striker:    { bg: "bg-red-500/15", text: "text-red-400", label: "Striker" },
+  caster:     { bg: "bg-violet-500/15", text: "text-violet-400", label: "Caster" },
+  skirmisher: { bg: "bg-emerald-500/15", text: "text-emerald-400", label: "Skirmisher" },
+  support:    { bg: "bg-sky-500/15", text: "text-sky-400", label: "Support" },
+};
+
+const STAT_META: { key: keyof typeof RACES[0]["baseStats"]; label: string; full: string; color: string }[] = [
+  { key: "strength", label: "STR", full: "Strength", color: "#ef4444" },
+  { key: "agility", label: "AGI", full: "Agility", color: "#22c55e" },
+  { key: "vitality", label: "VIT", full: "Vitality", color: "#f59e0b" },
+  { key: "spirit", label: "SPI", full: "Spirit", color: "#a855f7" },
+  { key: "focus", label: "FOC", full: "Focus", color: "#3b82f6" },
+];
+
+function RadarChart({ stats, max = 14 }: { stats: { [k: string]: number }; max?: number }) {
+  const cx = 90, cy = 90, r = 70;
+  const keys = STAT_META.map(s => s.key);
+  const n = keys.length;
+
+  const getPoint = (i: number, val: number) => {
+    const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+    const dist = (val / max) * r;
+    return { x: cx + Math.cos(angle) * dist, y: cy + Math.sin(angle) * dist };
+  };
+
+  const gridLevels = [0.25, 0.5, 0.75, 1.0];
+  const dataPoints = keys.map((k, i) => getPoint(i, stats[k] || 0));
+  const polygon = dataPoints.map(p => `${p.x},${p.y}`).join(" ");
 
   return (
-    <div className="group flex items-center gap-2">
-      <span className="w-10 text-[10px] font-bold uppercase tracking-wider text-stone-500 group-hover:text-stone-300 transition-colors">
-        {label}
-      </span>
-      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-stone-800/80">
-        <div
-          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-700 ease-out ${color}`}
-          style={{ width: `${width}%`, transitionDelay: `${delay}ms` }}
+    <svg viewBox="0 0 180 180" className="w-full max-w-[200px] mx-auto">
+      {gridLevels.map((level) => (
+        <polygon
+          key={level}
+          points={keys.map((_, i) => { const p = getPoint(i, max * level); return `${p.x},${p.y}`; }).join(" ")}
+          fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="1"
         />
-        <div
-          className={`absolute inset-y-0 left-0 rounded-full blur-sm opacity-50 ${color}`}
-          style={{ width: `${width}%`, transitionDelay: `${delay}ms`, transition: "width 700ms ease-out" }}
-        />
-      </div>
-      <span className="w-5 text-right text-[11px] font-black text-stone-300 tabular-nums">{value}</span>
+      ))}
+      {keys.map((_, i) => {
+        const p = getPoint(i, max);
+        return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />;
+      })}
+      <polygon points={polygon} fill="rgba(249,115,22,0.12)" stroke="#f97316" strokeWidth="1.5" strokeLinejoin="round" />
+      {dataPoints.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="3" fill={STAT_META[i].color} />
+      ))}
+      {keys.map((_, i) => {
+        const p = getPoint(i, max + 3);
+        return (
+          <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle"
+            className="fill-stone-500 text-[9px] font-bold uppercase">{STAT_META[i].label}</text>
+        );
+      })}
+    </svg>
+  );
+}
+
+function DifficultyPips({ level }: { level: number }) {
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} className={`h-2 w-2 rounded-sm transition-all ${
+          i <= level ? "bg-ember-500" : "bg-stone-800"
+        }`} />
+      ))}
     </div>
   );
 }
@@ -106,30 +138,41 @@ function RaceSelectionStep({
   onSelect: (id: RaceId) => void;
 }) {
   const race = selectedRace ? getRaceById(selectedRace) : null;
+  const [loreExpanded, setLoreExpanded] = useState(false);
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
       {/* Left: Race list */}
-      <div className="wizard-panel flex flex-col gap-1.5 border-r p-4 lg:w-72">
+      <div className="wizard-panel flex flex-col gap-1 overflow-y-auto border-r border-stone-800/30 p-3 lg:w-72">
         {RACES.map((r) => {
           const isActive = selectedRace === r.id;
+          const roleInfo = ROLE_COLORS[r.role] || ROLE_COLORS.striker;
           return (
             <button
               key={r.id}
-              onClick={() => onSelect(r.id)}
-              className={`group relative rounded-lg border p-3 text-left transition-all duration-300 ${
+              onClick={() => { onSelect(r.id); setLoreExpanded(false); }}
+              className={`group relative rounded-lg border p-2.5 text-left transition-all duration-200 ${
                 isActive
-                  ? "border-ember-500/60 bg-gradient-to-r from-ember-500/10 to-transparent shadow-lg shadow-ember-500/5"
-                  : "border-transparent bg-stone-900/20 hover:border-stone-700/50 hover:bg-stone-800/30"
+                  ? "border-ember-500/40 bg-gradient-to-r from-ember-500/8 to-transparent"
+                  : "border-transparent hover:bg-white/[0.02]"
               }`}
             >
               {isActive && (
-                <div className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-r bg-ember-500" />
+                <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r bg-ember-500" />
               )}
-              <h3 className={`font-display text-sm tracking-wide ${isActive ? "text-ember-400 text-shadow-ember" : "text-stone-300 group-hover:text-stone-100"}`}>
-                {r.name}
-              </h3>
-              <p className="mt-0.5 text-[10px] text-stone-600 leading-relaxed">{r.tagline}</p>
+              <div className="flex items-center gap-2.5 pl-1.5">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`text-[13px] font-bold truncate ${isActive ? "text-ember-400" : "text-stone-300 group-hover:text-stone-100"}`}>
+                      {r.name}
+                    </h3>
+                    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${roleInfo.bg} ${roleInfo.text}`}>
+                      {roleInfo.label}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-stone-600 truncate">{r.tagline}</p>
+                </div>
+              </div>
             </button>
           );
         })}
@@ -143,13 +186,11 @@ function RaceSelectionStep({
           <div className="flex h-full items-center justify-center bg-stone-950">
             <div className="text-center">
               <p className="font-display text-lg text-stone-700 tracking-wider">Choose a Lineage</p>
-              <p className="mt-1 text-xs text-stone-800">Select from the races of the frontier</p>
             </div>
           </div>
         )}
-        {/* Bottom gradient overlay with race name */}
         {race && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-stone-950 via-stone-950/60 to-transparent p-6 pt-16">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-stone-950 via-stone-950/60 to-transparent p-6 pt-20">
             <h2 className="font-display text-3xl font-bold tracking-wide text-stone-100 text-shadow-sm">
               {race.name}
             </h2>
@@ -160,75 +201,123 @@ function RaceSelectionStep({
 
       {/* Right: Race details */}
       {race && (
-        <div className="wizard-panel flex flex-col gap-5 overflow-y-auto border-l p-5 lg:w-[380px] animate-fade-in">
-          {/* Lore */}
-          <div className="relative">
-            <p className="text-[13px] leading-relaxed text-stone-400">{race.description}</p>
-            <div className="mt-3 border-l-2 border-ember-500/30 pl-3">
-              <p className="text-[11px] italic leading-relaxed text-stone-500">{race.lore.slice(0, 180)}...</p>
+        <div className="wizard-panel flex flex-col gap-4 overflow-y-auto border-l border-stone-800/30 p-4 lg:w-[400px] animate-fade-in" key={race.id}>
+          {/* Header: Role + Difficulty */}
+          <div className="flex items-center gap-3">
+            <span className={`rounded-md px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest ${ROLE_COLORS[race.role]?.bg} ${ROLE_COLORS[race.role]?.text}`}>
+              {ROLE_COLORS[race.role]?.label}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-wider text-stone-600">Difficulty</span>
+              <DifficultyPips level={race.difficulty} />
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="rounded-lg border border-stone-800/50 bg-stone-900/30 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-display text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">
-                Attributes
-              </h3>
-              <span className="text-[10px] tabular-nums text-stone-600">
-                {Object.values(race.baseStats).reduce((a, b) => a + b, 0)} total
-              </span>
-            </div>
-            <div className="space-y-2.5">
-              <AnimatedStatBar label="STR" value={race.baseStats.strength} color="bg-red-500" delay={0} />
-              <AnimatedStatBar label="AGI" value={race.baseStats.agility} color="bg-emerald-500" delay={80} />
-              <AnimatedStatBar label="VIT" value={race.baseStats.vitality} color="bg-amber-500" delay={160} />
-              <AnimatedStatBar label="SPI" value={race.baseStats.spirit} color="bg-violet-500" delay={240} />
-              <AnimatedStatBar label="FOC" value={race.baseStats.focus} color="bg-sky-500" delay={320} />
+          {/* Playstyle */}
+          <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] px-4 py-3">
+            <p className="text-[12px] font-medium leading-relaxed text-stone-300">{race.playstyle}</p>
+          </div>
+
+          {/* Radar Chart + Stat numbers side by side */}
+          <div className="rounded-lg border border-white/[0.04] bg-white/[0.015] p-4">
+            <div className="flex items-center gap-4">
+              <div className="shrink-0">
+                <RadarChart stats={race.baseStats as unknown as { [k: string]: number }} />
+              </div>
+              <div className="flex-1 space-y-2">
+                {STAT_META.map(s => (
+                  <div key={s.key} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: s.color }} />
+                      <span className="text-[11px] text-stone-500">{s.full}</span>
+                    </div>
+                    <span className="text-[13px] font-black tabular-nums text-stone-200">{race.baseStats[s.key]}</span>
+                  </div>
+                ))}
+                <div className="border-t border-white/[0.04] pt-2 mt-1">
+                  <div className="flex justify-between">
+                    <span className="text-[10px] uppercase tracking-wider text-stone-600">Total Power</span>
+                    <span className="text-[13px] font-black tabular-nums text-ember-400">
+                      {Object.values(race.baseStats).reduce((a, b) => a + b, 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Abilities */}
           <div>
-            <h3 className="mb-2.5 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">
-              Racial Powers
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
+              Racial Abilities
             </h3>
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               {race.abilities.map((ability) => (
                 <div
                   key={ability.id}
-                  className="rounded-lg border border-stone-800/40 bg-stone-900/20 p-3 transition-colors hover:border-stone-700/50"
+                  className="group rounded-lg border border-white/[0.04] bg-white/[0.015] p-3 transition-all hover:border-white/[0.08]"
                 >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        ability.type === "passive" ? "bg-emerald-400" : "bg-sky-400"
-                      }`}
-                    />
-                    <h4 className="text-[13px] font-bold text-stone-200">{ability.name}</h4>
-                    {ability.cooldown && (
-                      <span className="ml-auto rounded bg-stone-800/80 px-1.5 py-0.5 text-[9px] text-stone-500">
-                        {ability.cooldown}s
+                  <div className="flex items-start gap-3">
+                    <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                      ability.type === "passive"
+                        ? "bg-emerald-500/10 ring-1 ring-emerald-500/20"
+                        : "bg-sky-500/10 ring-1 ring-sky-500/20"
+                    }`}>
+                      <span className={`text-[10px] font-black uppercase ${
+                        ability.type === "passive" ? "text-emerald-400" : "text-sky-400"
+                      }`}>
+                        {ability.type === "passive" ? "P" : "A"}
                       </span>
-                    )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-[13px] font-bold text-stone-200">{ability.name}</h4>
+                        {ability.cooldown && (
+                          <span className="ml-auto shrink-0 rounded-full bg-stone-800/60 px-2 py-0.5 text-[9px] font-bold tabular-nums text-stone-500">
+                            {ability.cooldown}s CD
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-stone-500">{ability.description}</p>
+                    </div>
                   </div>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-stone-500">{ability.description}</p>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Lore */}
+          <div className="rounded-lg border border-white/[0.04] bg-white/[0.01] p-4">
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
+              Lore
+            </h3>
+            <p className="text-[12px] leading-relaxed text-stone-400">{race.description}</p>
+            <div className="mt-3">
+              <p className="text-[11px] italic leading-relaxed text-stone-500">
+                {loreExpanded ? race.lore : race.lore.slice(0, 200) + "..."}
+              </p>
+              {race.lore.length > 200 && (
+                <button
+                  onClick={() => setLoreExpanded(!loreExpanded)}
+                  className="mt-1 text-[10px] font-medium text-ember-500 hover:text-ember-400 transition-colors"
+                >
+                  {loreExpanded ? "Show less" : "Read full lore"}
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Traits */}
           <div>
-            <h3 className="mb-2 font-display text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">
-              Distinguishing Traits
+            <h3 className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
+              Physical Traits
             </h3>
-            <div className="space-y-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               {race.traits.map((trait, i) => (
-                <p key={i} className="flex items-start gap-2 text-[11px] text-stone-500">
-                  <span className="mt-1 block h-1 w-1 flex-shrink-0 rounded-full bg-ember-500/60" />
-                  {trait}
-                </p>
+                <div key={i} className="flex items-start gap-2 rounded bg-white/[0.015] px-3 py-1.5">
+                  <span className="mt-1.5 block h-1 w-1 shrink-0 rounded-full bg-ember-500/50" />
+                  <p className="text-[11px] text-stone-400">{trait}</p>
+                </div>
               ))}
             </div>
           </div>
