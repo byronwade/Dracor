@@ -182,8 +182,8 @@ export class PlayerController {
     const alpha = this.cameraYaw;
     const forwardX = -Math.cos(alpha);
     const forwardZ = -Math.sin(alpha);
-    const rightX = Math.sin(alpha);
-    const rightZ = -Math.cos(alpha);
+    const rightX = -Math.sin(alpha);
+    const rightZ = Math.cos(alpha);
 
     const worldX = moveX * rightX + moveZ * forwardX;
     const worldZ = moveX * rightZ + moveZ * forwardZ;
