@@ -11,7 +11,7 @@ import { createFoliageFromManifest } from './createFoliageFromManifest';
 import { createRoadFromManifest } from './createRoadFromManifest';
 import { createShrineFromManifest } from './createShrineFromManifest';
 import { createLandmarksFromManifest } from './createLandmarksFromManifest';
-import { createSkyAndAtmosphere } from './createSkyAndAtmosphere';
+import { createSkyAndAtmosphere, type SkyResult } from './createSkyAndAtmosphere';
 import { createWater } from './createWater';
 import { createDistantMountains } from './createDistantMountains';
 
@@ -19,6 +19,7 @@ export type HeightSampler = (x: number, z: number) => number;
 
 export interface ZoneLoadResult {
   terrain: TerrainResult;
+  sky: SkyResult;
 }
 
 /**
@@ -59,13 +60,11 @@ export function loadZoneFromManifest(
     createWater(water, scene, h);
   }
 
-  // Create sky and atmosphere
-  createSkyAndAtmosphere(scene, quality);
+  const sky = createSkyAndAtmosphere(scene, quality);
 
-  // Create distant mountains
   createDistantMountains(scene);
 
-  return { terrain };
+  return { terrain, sky };
 }
 
 function createRocksFromManifest(

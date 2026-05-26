@@ -10,6 +10,24 @@ import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import type { InputState } from './InputController';
 import type { MultiplayerClient } from './MultiplayerClient';
 
+export interface CharacterConfig {
+  race: string;
+  weapon: string;
+  memory: string;
+}
+
+const RACE_COLORS: Record<string, { body: [number, number, number]; accent: [number, number, number] }> = {
+  dracor:     { body: [0.55, 0.28, 0.08], accent: [1.0, 0.45, 0.0] },
+  ironborn:   { body: [0.35, 0.33, 0.31], accent: [0.7, 0.65, 0.55] },
+  sylvhari:   { body: [0.18, 0.45, 0.25], accent: [0.4, 0.85, 0.45] },
+  ashwalker:  { body: [0.45, 0.35, 0.22], accent: [0.65, 0.5, 0.3] },
+  voidtouched:{ body: [0.2, 0.1, 0.35], accent: [0.5, 0.15, 0.7] },
+  bloodfane:  { body: [0.5, 0.05, 0.05], accent: [0.9, 0.1, 0.2] },
+  stoneguard: { body: [0.35, 0.33, 0.3], accent: [0.8, 0.6, 0.1] },
+  grukhar:    { body: [0.25, 0.35, 0.15], accent: [0.55, 0.4, 0.1] },
+  skrix:      { body: [0.3, 0.4, 0.2], accent: [0.5, 0.65, 0.0] },
+};
+
 const WALK_SPEED = 5.0;
 const SPRINT_MULTIPLIER = 1.8;
 const ACCELERATION = 35.0;
@@ -64,30 +82,94 @@ export class PlayerController {
     spawnX: number,
     spawnY: number,
     spawnZ: number,
-    getHeightAt: (x: number, z: number) => number
+    getHeightAt: (x: number, z: number) => number,
+    charConfig?: CharacterConfig
   ) {
     this.getHeightAt = getHeightAt;
 
+    const colors = RACE_COLORS[charConfig?.race || 'dracor'] || RACE_COLORS.dracor;
+
+    const bodyMat = new StandardMaterial('localPlayerMat', scene);
+    bodyMat.diffuseColor = new Color3(...colors.body);
+    bodyMat.specularColor = new Color3(0.2, 0.15, 0.1);
+
+    const accentMat = new StandardMaterial('localAccentMat', scene);
+    accentMat.diffuseColor = new Color3(...colors.accent);
+    accentMat.specularColor = new Color3(0.3, 0.25, 0.2);
+
+    // Torso
     const body = MeshBuilder.CreateCylinder(
       'localPlayer',
-      { diameter: 0.8, height: 1.6, tessellation: 16 },
+      { diameterTop: 0.7, diameterBottom: 0.5, height: 1.0, tessellation: 16 },
       scene
     );
+    body.material = bodyMat;
 
-    const mat = new StandardMaterial('localPlayerMat', scene);
-    mat.diffuseColor = new Color3(0.9, 0.4, 0.1);
-    mat.specularColor = new Color3(0.3, 0.15, 0.05);
-    mat.emissiveColor = new Color3(0.15, 0.05, 0.0);
-    body.material = mat;
-
+    // Head
     const head = MeshBuilder.CreateSphere(
       'localPlayerHead',
-      { diameter: 0.6, segments: 12 },
+      { diameter: 0.5, segments: 16 },
       scene
     );
-    head.position = new Vector3(0, 1.0, 0);
+    head.position = new Vector3(0, 0.8, 0);
     head.parent = body;
-    head.material = mat;
+    head.material = bodyMat;
+
+    // Shoulders
+    for (const side of [-1, 1]) {
+      const shoulder = MeshBuilder.CreateSphere(
+        `localShoulder${side}`,
+        { diameter: 0.22, segments: 10 },
+        scene
+      );
+      shoulder.position = new Vector3(side * 0.42, 0.35, 0);
+      shoulder.parent = body;
+      shoulder.material = accentMat;
+    }
+
+    // Belt
+    const belt = MeshBuilder.CreateCylinder(
+      'localBelt',
+      { diameter: 0.58, height: 0.06, tessellation: 16 },
+      scene
+    );
+    belt.position = new Vector3(0, -0.35, 0);
+    belt.parent = body;
+    belt.material = accentMat;
+
+    // Weapon on back or side
+    const wpn = charConfig?.weapon || 'blade';
+    if (wpn === 'blade') {
+      const sword = MeshBuilder.CreateBox('localSword', { width: 0.04, height: 0.6, depth: 0.01 }, scene);
+      sword.position = new Vector3(0.3, 0.1, -0.15);
+      sword.rotation.z = 0.15;
+      sword.parent = body;
+      const swordMat = new StandardMaterial('swordMat', scene);
+      swordMat.diffuseColor = new Color3(0.65, 0.65, 0.7);
+      swordMat.specularColor = new Color3(0.5, 0.5, 0.5);
+      sword.material = swordMat;
+    } else if (wpn === 'bow') {
+      const bow = MeshBuilder.CreateTorus('localBow', { diameter: 0.4, thickness: 0.02, tessellation: 16 }, scene);
+      bow.position = new Vector3(-0.35, 0.15, -0.1);
+      bow.rotation.z = Math.PI / 2;
+      bow.parent = body;
+      bow.material = accentMat;
+    } else if (wpn === 'staff') {
+      const staff = MeshBuilder.CreateCylinder('localStaff', { diameterTop: 0.02, diameterBottom: 0.03, height: 1.4, tessellation: 8 }, scene);
+      staff.position = new Vector3(0.35, 0.5, -0.1);
+      staff.rotation.z = 0.08;
+      staff.parent = body;
+      const staffMat = new StandardMaterial('staffMat', scene);
+      staffMat.diffuseColor = new Color3(0.35, 0.22, 0.1);
+      staff.material = staffMat;
+      const orb = MeshBuilder.CreateSphere('localOrb', { diameter: 0.1, segments: 10 }, scene);
+      orb.position = new Vector3(0.35, 1.2, -0.1);
+      orb.parent = body;
+      const orbMat = new StandardMaterial('orbMat', scene);
+      orbMat.emissiveColor = new Color3(0.5, 0.25, 0.9);
+      orbMat.diffuseColor = new Color3(0.1, 0.05, 0.15);
+      orb.material = orbMat;
+    }
 
     this.mesh = body;
 

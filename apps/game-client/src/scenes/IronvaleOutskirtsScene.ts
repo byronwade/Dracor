@@ -425,9 +425,12 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
 
 // ─── Scene Builder ───
 
+import { DayNightCycle } from '../systems/DayNightCycle';
+
 export interface IronvaleSceneResult {
   scene: Scene;
   getHeightAt: (x: number, z: number) => number;
+  dayNight: DayNightCycle;
 }
 
 /**
@@ -439,97 +442,54 @@ export function buildIronvaleOutskirtsScene(
 ): IronvaleSceneResult {
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.02, 0.015, 0.03, 1.0);
+  scene.fogMode = Scene.FOGMODE_EXP2;
+  scene.fogDensity = 0.012;
+  scene.fogColor = new Color3(0.3, 0.32, 0.38);
+  scene.ambientColor = new Color3(0.1, 0.1, 0.12);
 
-  // ─── Lighting ───
-  const lightPreset = LIGHTING[IRONVALE_OUTSKIRTS.lightingPreset] ?? LIGHTING.ironvale_dusk;
+  const dayNight = new DayNightCycle(scene, quality, 0.73);
 
-  const hemiLight = new HemisphericLight(
-    'hemiLight',
-    new Vector3(0, 1, 0),
-    scene
-  );
-  hemiLight.intensity = lightPreset.ambientIntensity;
-  hemiLight.diffuse = new Color3(
-    lightPreset.ambientColor[0],
-    lightPreset.ambientColor[1],
-    lightPreset.ambientColor[2]
-  );
-  hemiLight.groundColor = new Color3(0.05, 0.04, 0.06);
-
-  const dirLight = new DirectionalLight(
-    'dirLight',
-    new Vector3(
-      lightPreset.sunDirection[0],
-      lightPreset.sunDirection[1],
-      lightPreset.sunDirection[2]
-    ).normalize(),
-    scene
-  );
-  dirLight.intensity = lightPreset.sunIntensity;
-  dirLight.diffuse = new Color3(
-    lightPreset.sunColor[0],
-    lightPreset.sunColor[1],
-    lightPreset.sunColor[2]
-  );
-
-  // ─── Fog ───
-  const fogPreset = FOG[IRONVALE_OUTSKIRTS.fogPreset] ?? FOG.ironvale_mist;
-  if (fogPreset.mode === 'exp2') {
-    scene.fogMode = Scene.FOGMODE_EXP2;
-  } else if (fogPreset.mode === 'exp') {
-    scene.fogMode = Scene.FOGMODE_EXP;
-  } else {
-    scene.fogMode = Scene.FOGMODE_LINEAR;
-  }
-  scene.fogDensity = fogPreset.density;
-  scene.fogColor = new Color3(
-    fogPreset.color[0],
-    fogPreset.color[1],
-    fogPreset.color[2]
-  );
-
-  // ─── Build World ───
   const zoneResult = loadZoneFromManifest(IRONVALE_OUTSKIRTS, scene, quality);
 
-  // ─── Town lights (warm distant glow) ───
-  createTownLights(scene);
+  dayNight.bindSky(zoneResult.sky.skyMat, zoneResult.sky.horizonMat);
 
-  // ─── Post-Processing ───
+  createTownLights(scene, zoneResult.terrain.getHeightAt);
+
   if (quality.postProcessingEnabled) {
-    applyPostProcessing(scene, quality);
+    setupPostProcessing(scene, quality, dayNight);
   }
 
   return {
     scene,
     getHeightAt: zoneResult.terrain.getHeightAt,
+    dayNight,
   };
 }
 
-function createTownLights(scene: Scene): void {
-  // Warm point lights simulating distant town of Ironvale (south of player)
+function createTownLights(scene: Scene, getHeightAt: (x: number, z: number) => number): void {
   const townPositions = [
-    { x: -30, y: 3, z: -80 },
-    { x: -10, y: 2.5, z: -90 },
-    { x: 15, y: 3, z: -85 },
-    { x: 40, y: 2, z: -75 },
-    { x: -50, y: 2.5, z: -95 },
+    { x: -30, z: -80 },
+    { x: -10, z: -90 },
+    { x: 15, z: -85 },
+    { x: 40, z: -75 },
+    { x: -50, z: -95 },
   ];
 
   for (let i = 0; i < townPositions.length; i++) {
     const p = townPositions[i];
+    const y = getHeightAt(p.x, p.z) + 2.5;
     const light = new PointLight(
       `townLight_${i}`,
-      new Vector3(p.x, p.y, p.z),
+      new Vector3(p.x, y, p.z),
       scene
     );
     light.intensity = 0.6;
-    light.diffuse = new Color3(1.0, 0.75, 0.35); // Warm amber
+    light.diffuse = new Color3(1.0, 0.75, 0.35);
     light.range = 20;
   }
 }
 
-function applyPostProcessing(scene: Scene, quality: QualitySettings): void {
-  // Will be applied once a camera is active (deferred setup)
+function setupPostProcessing(scene: Scene, quality: QualitySettings, dayNight: DayNightCycle): void {
   scene.onActiveCameraChanged.addOnce(() => {
     const camera = scene.activeCamera;
     if (!camera) return;
@@ -541,7 +501,6 @@ function applyPostProcessing(scene: Scene, quality: QualitySettings): void {
       [camera]
     );
 
-    // Bloom
     pipeline.bloomEnabled = quality.bloomEnabled;
     if (quality.bloomEnabled) {
       pipeline.bloomThreshold = 0.7;
@@ -549,21 +508,26 @@ function applyPostProcessing(scene: Scene, quality: QualitySettings): void {
       pipeline.bloomKernel = 64;
     }
 
-    // Image processing
     pipeline.imageProcessingEnabled = true;
     pipeline.imageProcessing.toneMappingEnabled = true;
-    pipeline.imageProcessing.toneMappingType = 1; // ACES
+    pipeline.imageProcessing.toneMappingType = 1;
     pipeline.imageProcessing.exposure = 1.0;
     pipeline.imageProcessing.contrast = 1.05;
 
-    // Vignette
     pipeline.imageProcessing.vignetteEnabled = true;
     pipeline.imageProcessing.vignetteWeight = 1.8;
     pipeline.imageProcessing.vignetteCameraFov = 0.5;
 
-    // Film grain for atmosphere
     pipeline.grainEnabled = true;
     pipeline.grain.intensity = 6;
     pipeline.grain.animated = true;
+
+    pipeline.chromaticAberrationEnabled = quality.tier === 'ultra';
+    if (pipeline.chromaticAberrationEnabled) {
+      pipeline.chromaticAberration.aberrationAmount = 15;
+      pipeline.chromaticAberration.radialIntensity = 0.5;
+    }
+
+    dayNight.bindPipeline(pipeline);
   });
 }

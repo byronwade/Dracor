@@ -23,12 +23,14 @@ import { createMinimap, type Minimap } from '../ui/createMinimap';
 import { createMainMenu, type MainMenu } from '../ui/createMainMenu';
 import { createPauseMenu, type PauseMenu } from '../ui/createPauseMenu';
 import { createSettingsPanel, type SettingsPanel } from '../ui/createSettingsPanel';
+import type { DayNightCycle } from '../systems/DayNightCycle';
 
 export class GameApp {
   private engine!: Engine;
   private scene!: Scene;
   private quality!: QualitySettings;
   private sceneResult!: SceneBuildResult;
+  private dayNight: DayNightCycle | null = null;
   private inputController!: InputController;
   private playerController!: PlayerController;
   private cameraController!: CameraController;
@@ -85,6 +87,7 @@ export class GameApp {
     const builder = getSceneBuilder('ironvale_outskirts');
     this.sceneResult = builder(this.engine, this.quality);
     this.scene = this.sceneResult.scene;
+    this.dayNight = this.sceneResult.dayNight;
 
     this.inputController = new InputController();
     this.inputController.attachCanvas(this.canvas);
@@ -95,7 +98,12 @@ export class GameApp {
       spawn.x,
       spawn.y,
       spawn.z,
-      this.sceneResult.getHeightAt
+      this.sceneResult.getHeightAt,
+      {
+        race: this.characterRace,
+        weapon: this.characterWeapon,
+        memory: this.characterMemory,
+      }
     );
 
     this.cameraController = new CameraController(
@@ -191,6 +199,8 @@ export class GameApp {
       const input = this.inputController.getInput();
       this.playerController.update(input, dt);
     }
+
+    if (this.dayNight) this.dayNight.update(dt);
 
     this.multiplayerClient.interpolateRemotePlayers();
 
