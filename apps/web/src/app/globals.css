@@ -39,6 +39,13 @@
 }
 
 @layer components {
+  .ember-gradient-text {
+    background: linear-gradient(to right, #f97316, #f59e0b, #ea580c);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
   .text-accent {
     color: #f97316;
   }

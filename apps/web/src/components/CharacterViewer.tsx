@@ -68,6 +68,38 @@ const RACE_CONFIGS: Record<
     accent: [0.5, 0.2, 0.7],
     eyeGlow: [0.7, 0.2, 1.0],
   },
+  bloodfane: {
+    bodyType: "lean",
+    height: 1.92,
+    skin: [0.9, 0.82, 0.78],
+    armor: [0.3, 0.0, 0.0],
+    accent: [0.8, 0.0, 0.15],
+    eyeGlow: [1.0, 0.0, 0.2],
+  },
+  stoneguard: {
+    bodyType: "heavy",
+    height: 1.4,
+    skin: [0.45, 0.42, 0.4],
+    armor: [0.25, 0.25, 0.25],
+    accent: [0.83, 0.63, 0.09],
+    eyeGlow: [0.83, 0.63, 0.09],
+  },
+  grukhar: {
+    bodyType: "heavy",
+    height: 2.1,
+    skin: [0.35, 0.42, 0.22],
+    armor: [0.3, 0.22, 0.1],
+    accent: [0.55, 0.41, 0.08],
+    eyeGlow: [0.8, 0.2, 0.0],
+  },
+  skrix: {
+    bodyType: "lean",
+    height: 1.2,
+    skin: [0.4, 0.48, 0.3],
+    armor: [0.3, 0.35, 0.2],
+    accent: [0.53, 0.67, 0.0],
+    eyeGlow: [0.7, 0.8, 0.0],
+  },
 };
 
 export function CharacterViewer({
@@ -499,6 +531,84 @@ function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId
         m.material.alpha = 0.9;
       }
     });
+  } else if (raceId === "bloodfane") {
+    // Long pointed ears
+    for (const side of [-1, 1]) {
+      const ear = B.MeshBuilder.CreateCylinder(`ear${side}`, {
+        diameterTop: 0, diameterBottom: 0.02 * S, height: 0.2 * S, tessellation: 6
+      }, scene);
+      ear.position.set(side * headR * S * 0.95, headY + headR * S * 0.15, 0);
+      ear.rotation.z = side * -0.85;
+      ear.material = skinMat;
+      ear.parent = root;
+    }
+    // Crimson circlet
+    const circlet = B.MeshBuilder.CreateTorus("circlet", {
+      diameter: headR * S * 2.3, thickness: 0.015 * S, tessellation: 24
+    }, scene);
+    circlet.position.y = headY + headR * S * 0.6;
+    circlet.rotation.x = Math.PI / 2;
+    circlet.material = accentMat;
+    circlet.parent = root;
+  } else if (raceId === "stoneguard") {
+    // Helmet brow
+    const helm = B.MeshBuilder.CreateBox("helm", {
+      width: headR * S * 2.5, height: headR * S * 0.5, depth: headR * S * 1.4
+    }, scene);
+    helm.position.set(0, headY + headR * S * 0.6, headR * S * 0.05);
+    helm.material = accentMat;
+    helm.parent = root;
+    // Beard (cone below chin)
+    const beard = B.MeshBuilder.CreateCylinder("beard", {
+      diameterTop: headR * S * 1.2, diameterBottom: 0.02 * S, height: 0.25 * S, tessellation: 8
+    }, scene);
+    beard.position.set(0, headY - headR * S * 1.0, headR * S * 0.3);
+    beard.material = skinMat;
+    beard.parent = root;
+    // Chest plate
+    const plate = B.MeshBuilder.CreateBox("sPlate", {
+      width: shoulderW * S * 1.8, height: torsoH * S * 0.5, depth: 0.07 * S
+    }, scene);
+    plate.position.set(0, chestY + torsoH * S * 0.1, shoulderW * S * 0.5);
+    plate.material = accentMat;
+    plate.parent = root;
+  } else if (raceId === "grukhar") {
+    // Tusks
+    for (const side of [-1, 1]) {
+      const tusk = B.MeshBuilder.CreateCylinder(`tusk${side}`, {
+        diameterTop: 0, diameterBottom: 0.03 * S, height: 0.12 * S, tessellation: 8
+      }, scene);
+      tusk.position.set(side * headR * S * 0.45, headY - headR * S * 0.5, headR * S * 0.75);
+      tusk.rotation.x = -0.3;
+      tusk.material = accentMat;
+      tusk.parent = root;
+    }
+    // Jaw ridge
+    const jaw = B.MeshBuilder.CreateBox("jaw", {
+      width: headR * S * 1.8, height: headR * S * 0.3, depth: headR * S * 0.5
+    }, scene);
+    jaw.position.set(0, headY - headR * S * 0.6, headR * S * 0.4);
+    jaw.material = skinMat;
+    jaw.parent = root;
+  } else if (raceId === "skrix") {
+    // Large pointed ears
+    for (const side of [-1, 1]) {
+      const ear = B.MeshBuilder.CreateCylinder(`ear${side}`, {
+        diameterTop: 0, diameterBottom: 0.035 * S, height: 0.22 * S, tessellation: 4
+      }, scene);
+      ear.position.set(side * headR * S * 1.0, headY + headR * S * 0.3, -headR * S * 0.1);
+      ear.rotation.z = side * -0.7;
+      ear.material = skinMat;
+      ear.parent = root;
+    }
+    // Goggles on forehead
+    const goggle = B.MeshBuilder.CreateTorus("goggle", {
+      diameter: headR * S * 1.4, thickness: 0.015 * S, tessellation: 16
+    }, scene);
+    goggle.position.set(0, headY + headR * S * 0.5, headR * S * 0.3);
+    goggle.rotation.x = Math.PI / 2.5;
+    goggle.material = accentMat;
+    goggle.parent = root;
   }
 
   // --- Subtle idle breathing ---

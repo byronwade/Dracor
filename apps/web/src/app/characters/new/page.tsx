@@ -605,16 +605,17 @@ function NameStep({
 function CharacterCreationWizard() {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>("race");
-  const [selectedRace, setSelectedRace] = useState<RaceId | null>(null);
+  const [selectedRace, setSelectedRace] = useState<RaceId | null>("dracor");
   const [selectedMemory, setSelectedMemory] = useState<DragonMemory | null>(null);
   const [selectedWeapon, setSelectedWeapon] = useState<WeaponType | null>(null);
   const [name, setName] = useState("");
+  const defaultRace = getRaceById("dracor")!;
   const [appearance, setAppearance] = useState({
-    eyeColor: "",
-    skinTone: "",
-    marking: "",
-    hairStyle: "",
-    uniqueFeature: "",
+    eyeColor: defaultRace.appearance.eyeColors[0],
+    skinTone: defaultRace.appearance.skinTones[0],
+    marking: defaultRace.appearance.markings[0],
+    hairStyle: defaultRace.appearance.hairStyles[0],
+    uniqueFeature: defaultRace.appearance.uniqueFeatureOptions[0],
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);

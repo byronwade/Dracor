@@ -60,6 +60,9 @@ export function Navbar() {
   }
 
   const isHome = pathname === "/";
+  const isFullscreenPage = pathname === "/characters/new";
+
+  if (isFullscreenPage) return null;
 
   return (
     <>
@@ -73,7 +76,7 @@ export function Navbar() {
         <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-8 lg:px-12">
           <Link
             href="/"
-            className="text-sm font-bold tracking-label text-content-dim transition-colors hover:text-content-primary"
+            className="font-display text-sm font-bold tracking-label text-content-dim transition-colors hover:text-content-primary"
           >
             DRACOR
           </Link>

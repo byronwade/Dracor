@@ -1,6 +1,6 @@
 export type WeaponType = 'blade' | 'bow' | 'staff';
 export type DragonMemory = 'ember' | 'stone' | 'storm';
-export type RaceId = 'dracor' | 'ironborn' | 'sylvhari' | 'ashwalker' | 'voidtouched';
+export type RaceId = 'dracor' | 'ironborn' | 'sylvhari' | 'ashwalker' | 'voidtouched' | 'bloodfane' | 'stoneguard' | 'grukhar' | 'skrix';
 export type Ancestry = RaceId;
 
 export interface RacialAbility {
