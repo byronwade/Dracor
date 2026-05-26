@@ -14,6 +14,7 @@ import { connectToWorldRoom, type JoinOptions } from '../networking/connectToWor
 import type { ClientInputMessage, ChatMessagePayload, ConnectionState } from '../networking/networkTypes';
 
 interface RemotePlayer {
+  name: string;
   mesh: Mesh;
   label: Mesh;
   labelTexture: DynamicTexture;
@@ -354,6 +355,15 @@ export class MultiplayerClient {
     return this.remotePlayers.size + 1;
   }
 
+  getOnlinePlayerNames(): string[] {
+    const names: string[] = [];
+    if (this.assignedName) names.push(this.assignedName);
+    for (const [, rp] of this.remotePlayers) {
+      names.push(rp.name);
+    }
+    return names;
+  }
+
   getRemotePlayerPositions(): Array<{ x: number; z: number }> {
     const positions: Array<{ x: number; z: number }> = [];
     for (const [, rp] of this.remotePlayers) {
@@ -401,7 +411,7 @@ export class MultiplayerClient {
     head.parent = body;
     head.material = mat;
     const { label, texture } = this.createNameLabel(id, name, body, scene);
-    this.remotePlayers.set(id, { mesh: body, label, labelTexture: texture, targetX: 0, targetY: 0, targetZ: 0, targetRotY: 0 });
+    this.remotePlayers.set(id, { name, mesh: body, label, labelTexture: texture, targetX: 0, targetY: 0, targetZ: 0, targetRotY: 0 });
   }
 
   private removeRemotePlayer(id: string): void {

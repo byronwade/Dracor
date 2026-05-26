@@ -140,7 +140,11 @@ export class GameApp {
     this.chatController.onSend((content) => {
       this.multiplayerClient.sendChat(content);
       const displayName = this.multiplayerClient.getAssignedName() || this.playerName;
-      this.chatController.addMessage(displayName, content);
+      this.chatController.addSelfMessage(displayName, content);
+    });
+
+    this.multiplayerClient.onPlayerCount(() => {
+      this.chatController.updatePlayerList(this.multiplayerClient.getOnlinePlayerNames());
     });
 
     this.settingsPanel = createSettingsPanel(this.settings, () => {

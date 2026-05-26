@@ -1,8 +1,5 @@
 import { createChatPanel, type ChatPanel } from '../ui/createChatPanel';
 
-/**
- * Manages the chat UI and relays messages to/from the network layer.
- */
 export class ChatController {
   private panel: ChatPanel;
 
@@ -10,30 +7,26 @@ export class ChatController {
     this.panel = createChatPanel();
   }
 
-  /**
-   * Register a callback for when the local player sends a chat message.
-   */
   onSend(callback: (content: string) => void): void {
     this.panel.onSend(callback);
   }
 
-  /**
-   * Display an incoming chat message.
-   */
   addMessage(sender: string, content: string): void {
     this.panel.addMessage(sender, content);
   }
 
-  /**
-   * Display a system/info message.
-   */
+  addSelfMessage(sender: string, content: string): void {
+    this.panel.addSelfMessage(sender, content);
+  }
+
   addSystemMessage(content: string): void {
     this.panel.addSystemMessage(content);
   }
 
-  /**
-   * Whether the chat input field currently has keyboard focus.
-   */
+  updatePlayerList(names: string[]): void {
+    this.panel.updatePlayerList(names);
+  }
+
   isInputFocused(): boolean {
     return this.panel.isInputFocused();
   }
