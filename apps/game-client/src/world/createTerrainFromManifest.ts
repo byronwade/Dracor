@@ -71,10 +71,10 @@ export function createTerrainFromManifest(
 
   // Apply dark earth material
   const groundMat = new StandardMaterial('terrainMat', scene);
-  groundMat.diffuseColor = new Color3(0.3, 0.25, 0.18);
-  groundMat.specularColor = new Color3(0.04, 0.04, 0.03);
+  groundMat.diffuseColor = new Color3(0.14, 0.13, 0.09);
+  groundMat.specularColor = new Color3(0.01, 0.01, 0.01);
   groundMat.roughness = 1.0;
-  groundMat.ambientColor = new Color3(0.12, 0.15, 0.08);
+  groundMat.ambientColor = new Color3(0.04, 0.05, 0.03);
   ground.material = groundMat;
   ground.receiveShadows = true;
   ground.position = Vector3.Zero();

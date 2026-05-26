@@ -2,18 +2,18 @@ import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Ray } from '@babylonjs/core/Culling/ray';
 import { Scene } from '@babylonjs/core/scene';
-import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import '@babylonjs/core/Culling/ray';
 import type { MouseState } from './InputController';
 
-const MIN_RADIUS = 3;
-const MAX_RADIUS = 30;
-const DEFAULT_RADIUS = 12;
-const MIN_BETA = 0.2;
-const MAX_BETA = 1.48;
-const DEFAULT_BETA = 1.05;
-const DEFAULT_FOV = 0.85;
-const SPRINT_FOV = 0.95;
+const MIN_RADIUS = 5;
+const MAX_RADIUS = 40;
+const DEFAULT_RADIUS = 18;
+const MIN_BETA = 0.3;
+const MAX_BETA = 1.4;
+const DEFAULT_BETA = 0.85;
+const DEFAULT_FOV = 0.75;
+const SPRINT_FOV = 0.82;
 
 const ORBIT_SENSITIVITY = 0.003;
 const ZOOM_BASE_SENSITIVITY = 0.006;
@@ -39,7 +39,7 @@ function lerpAngle(from: number, to: number, t: number): number {
 export class CameraController {
   private camera: ArcRotateCamera;
   private scene: Scene;
-  private target: AbstractMesh;
+  private target: TransformNode;
   private getHeightAt: ((x: number, z: number) => number) | null = null;
 
   private targetAlpha: number;
@@ -60,7 +60,7 @@ export class CameraController {
   private rayOrigin = new Vector3();
   private rayDir = new Vector3();
 
-  constructor(scene: Scene, target: AbstractMesh, getHeightAt?: (x: number, z: number) => number) {
+  constructor(scene: Scene, target: TransformNode, getHeightAt?: (x: number, z: number) => number) {
     this.scene = scene;
     this.target = target;
     this.getHeightAt = getHeightAt || null;

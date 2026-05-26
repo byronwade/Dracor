@@ -22,14 +22,13 @@ export function createRoadFromManifest(
 
   // Road material - weathered stone
   const roadMat = new StandardMaterial('roadMat', scene);
-  roadMat.diffuseColor = new Color3(0.25, 0.23, 0.2); // Warm gray stone
-  roadMat.specularColor = new Color3(0.03, 0.03, 0.03);
+  roadMat.diffuseColor = new Color3(0.16, 0.15, 0.13);
+  roadMat.specularColor = new Color3(0.02, 0.02, 0.02);
   roadMat.roughness = 1.0;
-  roadMat.ambientColor = new Color3(0.08, 0.07, 0.06);
+  roadMat.ambientColor = new Color3(0.05, 0.05, 0.04);
 
-  // Edge/rubble material
   const rubbleMat = new StandardMaterial('roadRubbleMat', scene);
-  rubbleMat.diffuseColor = new Color3(0.18, 0.16, 0.14);
+  rubbleMat.diffuseColor = new Color3(0.12, 0.11, 0.09);
   rubbleMat.specularColor = new Color3(0.02, 0.02, 0.02);
   rubbleMat.roughness = 1.0;
 

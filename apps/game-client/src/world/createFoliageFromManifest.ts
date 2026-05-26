@@ -22,27 +22,27 @@ function ensureMaterials(scene: Scene): void {
   if (pineNeedleMat) return;
 
   pineNeedleMat = new StandardMaterial('pineNeedleMat', scene);
-  pineNeedleMat.diffuseColor = new Color3(0.15, 0.35, 0.12);
-  pineNeedleMat.specularColor = new Color3(0.02, 0.03, 0.01);
-  pineNeedleMat.ambientColor = new Color3(0.05, 0.1, 0.04);
+  pineNeedleMat.diffuseColor = new Color3(0.08, 0.18, 0.06);
+  pineNeedleMat.specularColor = new Color3(0.01, 0.02, 0.01);
+  pineNeedleMat.ambientColor = new Color3(0.03, 0.06, 0.02);
 
   pineTrunkMat = new StandardMaterial('pineTrunkMat', scene);
-  pineTrunkMat.diffuseColor = new Color3(0.35, 0.22, 0.12);
-  pineTrunkMat.specularColor = new Color3(0.03, 0.03, 0.02);
+  pineTrunkMat.diffuseColor = new Color3(0.18, 0.12, 0.07);
+  pineTrunkMat.specularColor = new Color3(0.02, 0.02, 0.01);
 
   deadTreeMat = new StandardMaterial('deadTreeMat', scene);
-  deadTreeMat.diffuseColor = new Color3(0.3, 0.25, 0.2);
-  deadTreeMat.specularColor = new Color3(0.03, 0.03, 0.02);
+  deadTreeMat.diffuseColor = new Color3(0.16, 0.13, 0.1);
+  deadTreeMat.specularColor = new Color3(0.02, 0.02, 0.01);
 
   bushMat = new StandardMaterial('bushMat', scene);
-  bushMat.diffuseColor = new Color3(0.2, 0.38, 0.15);
-  bushMat.specularColor = new Color3(0.02, 0.03, 0.01);
+  bushMat.diffuseColor = new Color3(0.1, 0.2, 0.07);
+  bushMat.specularColor = new Color3(0.01, 0.02, 0.01);
 
   grassMat = new StandardMaterial('grassMat', scene);
-  grassMat.diffuseColor = new Color3(0.25, 0.45, 0.18);
+  grassMat.diffuseColor = new Color3(0.12, 0.22, 0.08);
   grassMat.specularColor = Color3.Black();
   grassMat.backFaceCulling = false;
-  grassMat.alpha = 0.85;
+  grassMat.alpha = 0.7;
 }
 
 function createPineTreeSource(scene: Scene): Mesh {
