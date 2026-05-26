@@ -1,0 +1,9 @@
+export const WORLD_SIZE = 8192;
+export const HALF_WORLD = WORLD_SIZE / 2;
+export const CHUNK_SIZE = 64;
+export const GRID_SIZE = WORLD_SIZE / CHUNK_SIZE;
+export const CHUNK_RESOLUTION = 33;
+export const SEA_LEVEL = 0;
+export const MIN_HEIGHT = -50;
+export const MAX_HEIGHT = 200;
+export const DEFAULT_CACHE_SIZE = 256;
