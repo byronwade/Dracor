@@ -2,7 +2,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 
 import type { QualitySettings, ZoneManifest } from '../scenes/IronvaleOutskirtsScene';
-import type { CellState, CellPriority, StreamingConfig, HeightSampler } from './types';
+import type { StreamingConfig, HeightSampler } from './types';
 import { ChunkedTerrainManager } from './ChunkedTerrainManager';
 import { FoliageStreamingManager } from './FoliageStreamingManager';
 import { VRAMBudgetManager } from './VRAMBudgetManager';
@@ -14,16 +14,6 @@ import { createLandmarksFromManifest } from '../world/createLandmarksFromManifes
 import { createWater } from '../world/createWater';
 import { createSkyAndAtmosphere, type SkyResult } from '../world/createSkyAndAtmosphere';
 import { createDistantMountains } from '../world/createDistantMountains';
-
-interface CellInfo {
-  id: string;
-  gridX: number;
-  gridZ: number;
-  centerX: number;
-  centerZ: number;
-  state: CellState;
-  priority: CellPriority;
-}
 
 export interface StreamingSceneResult {
   getHeightAt: HeightSampler;
@@ -134,13 +124,11 @@ export class StreamingManager {
   private quality: QualitySettings;
   private manifest: ZoneManifest;
   private config: StreamingConfig;
-  private cells = new Map<string, CellInfo>();
   private terrain: ChunkedTerrainManager;
   private foliage: FoliageStreamingManager;
   private vramBudget: VRAMBudgetManager;
   private exclusions: ExclusionData;
   private updateCounter = 0;
-  private loadingCells = new Set<string>();
 
   constructor(scene: Scene, quality: QualitySettings, manifest: ZoneManifest) {
     this.scene = scene;
@@ -159,19 +147,6 @@ export class StreamingManager {
       this.terrain.getHeightAt
     );
 
-    for (const chunk of manifest.terrain.chunks) {
-      const center = this.terrain.getChunkWorldCenter(chunk.gridX, chunk.gridZ);
-      const cellId = `cell_${chunk.gridX}_${chunk.gridZ}`;
-      this.cells.set(cellId, {
-        id: cellId,
-        gridX: chunk.gridX,
-        gridZ: chunk.gridZ,
-        centerX: center.x,
-        centerZ: center.z,
-        state: 'unloaded',
-        priority: 'low',
-      });
-    }
   }
 
   async loadInitialArea(spawnPosition: Vector3): Promise<StreamingSceneResult> {
@@ -187,23 +162,18 @@ export class StreamingManager {
     }
     for (const water of this.manifest.water) createWater(water, this.scene, h);
 
-    // Generate all foliage placements once globally (not per-cell)
     await this.foliage.generateAllPlacements(
       this.manifest.foliage, this.manifest.rocks, this.exclusions
     );
 
-    this.updateCellPriorities(spawnPosition, new Vector3(0, 0, 1));
-
-    const cellsToLoad = [...this.cells.values()]
-      .filter(c => this.distanceToCell(spawnPosition, c) < this.config.loadDistance)
-      .sort((a, b) => this.distanceToCell(spawnPosition, a) - this.distanceToCell(spawnPosition, b));
-
-    await Promise.all(cellsToLoad.map(cell => this.loadCell(cell, spawnPosition)));
+    this.terrain.updateAroundPlayer(spawnPosition);
 
     this.foliage.updateInstanceBuffers(spawnPosition);
 
-    const loaded = cellsToLoad.filter(c => c.state === 'loaded').length;
-    console.log(`[Streaming] Initial load complete. ${loaded}/${this.cells.size} cells loaded.`);
+    const chunkCount = this.terrain.getChunksInRadius(
+      spawnPosition.x, spawnPosition.z, this.config.loadDistance
+    ).length;
+    console.log(`[Streaming] Initial load complete. ${chunkCount} terrain chunks loaded.`);
 
     return {
       getHeightAt: this.terrain.getHeightAt,
@@ -212,118 +182,14 @@ export class StreamingManager {
     };
   }
 
-  update(playerPosition: Vector3, cameraForward: Vector3, _dt: number): void {
+  update(playerPosition: Vector3, _cameraForward: Vector3, _dt: number): void {
     this.foliage.updateInstanceBuffers(playerPosition);
 
     this.updateCounter++;
     if (this.updateCounter % 10 !== 0) return;
 
-    this.updateCellPriorities(playerPosition, cameraForward);
-
-    for (const [, cell] of this.cells) {
-      const dist = this.distanceToCell(playerPosition, cell);
-
-      if (cell.state === 'unloaded' && dist < this.config.loadDistance && !this.loadingCells.has(cell.id)) {
-        if (this.getLoadedCellCount() < this.config.maxLoadedCells) {
-          this.loadCell(cell, playerPosition);
-        }
-      }
-
-      if (cell.state === 'loaded' && dist > this.config.unloadDistance) {
-        this.unloadCell(cell);
-      }
-    }
-
     this.terrain.updateLOD(playerPosition);
 
-    if (this.vramBudget.isOverBudget()) {
-      const protectedCells = this.getProtectedCells();
-      const evicted = this.vramBudget.evictUntilUnderBudget(protectedCells);
-      if (evicted.length > 0) {
-        console.log(`[Streaming] Evicted ${evicted.length} assets (VRAM over budget)`);
-      }
-    }
-  }
-
-  private async loadCell(cell: CellInfo, playerPosition: Vector3): Promise<void> {
-    if (cell.state !== 'unloaded') return;
-
-    cell.state = 'loading';
-    this.loadingCells.add(cell.id);
-
-    try {
-      const dist = this.distanceToCell(playerPosition, cell);
-      this.terrain.loadChunk(cell.gridX, cell.gridZ, dist);
-
-      const chunkSubs = this.terrain.getLoadedSubdivisions(cell.gridX, cell.gridZ);
-      const vertCount = (chunkSubs + 1) * (chunkSubs + 1);
-      const chunkMemMB = (vertCount * 12 + chunkSubs * chunkSubs * 6 * 2) / (1024 * 1024);
-      this.vramBudget.trackAsset(`terrain_${cell.gridX}_${cell.gridZ}`, 'mesh', chunkMemMB, cell.id);
-
-      cell.state = 'loaded';
-    } catch (err) {
-      console.warn(`[Streaming] Failed to load cell ${cell.id}:`, err);
-      cell.state = 'unloaded';
-    } finally {
-      this.loadingCells.delete(cell.id);
-    }
-  }
-
-  private unloadCell(cell: CellInfo): void {
-    if (cell.state !== 'loaded') return;
-
-    cell.state = 'unloading';
-    this.terrain.unloadChunk(cell.gridX, cell.gridZ);
-    this.vramBudget.untrackAsset(`terrain_${cell.gridX}_${cell.gridZ}`);
-    cell.state = 'unloaded';
-  }
-
-  private updateCellPriorities(playerPosition: Vector3, cameraForward: Vector3): void {
-    const chunkSize = this.terrain.chunkSize;
-
-    for (const [, cell] of this.cells) {
-      const dist = this.distanceToCell(playerPosition, cell);
-
-      if (dist < chunkSize * 0.7) {
-        cell.priority = 'critical';
-      } else if (dist < chunkSize * 1.5) {
-        cell.priority = 'high';
-      } else if (dist < chunkSize * 2.5) {
-        const toCellX = cell.centerX - playerPosition.x;
-        const toCellZ = cell.centerZ - playerPosition.z;
-        const toCellLen = Math.sqrt(toCellX * toCellX + toCellZ * toCellZ);
-        if (toCellLen > 0) {
-          const dot = (toCellX / toCellLen) * cameraForward.x + (toCellZ / toCellLen) * cameraForward.z;
-          cell.priority = dot > 0.5 ? 'high' : 'medium';
-        } else {
-          cell.priority = 'medium';
-        }
-      } else {
-        cell.priority = 'low';
-      }
-    }
-  }
-
-  private distanceToCell(pos: Vector3, cell: CellInfo): number {
-    const dx = pos.x - cell.centerX;
-    const dz = pos.z - cell.centerZ;
-    return Math.sqrt(dx * dx + dz * dz);
-  }
-
-  private getLoadedCellCount(): number {
-    let count = 0;
-    for (const [, cell] of this.cells) {
-      if (cell.state === 'loaded' || cell.state === 'loading') count++;
-    }
-    return count;
-  }
-
-  private getProtectedCells(): Set<string> {
-    const cells = new Set<string>();
-    for (const [, cell] of this.cells) {
-      if (cell.priority === 'critical' || cell.priority === 'high') cells.add(cell.id);
-    }
-    return cells;
   }
 
   getStreamingStats(): {
@@ -332,14 +198,10 @@ export class StreamingManager {
     loadingCells: number;
     vramUsage: { textureMB: number; meshMB: number; totalMB: number };
   } {
-    let loaded = 0;
-    for (const [, cell] of this.cells) {
-      if (cell.state === 'loaded') loaded++;
-    }
     return {
-      loadedCells: loaded,
-      totalCells: this.cells.size,
-      loadingCells: this.loadingCells.size,
+      loadedCells: 0,
+      totalCells: 0,
+      loadingCells: 0,
       vramUsage: this.vramBudget.getUsage(),
     };
   }
@@ -352,7 +214,5 @@ export class StreamingManager {
     this.terrain.dispose();
     this.foliage.dispose();
     this.vramBudget.dispose();
-    this.cells.clear();
-    this.loadingCells.clear();
   }
 }

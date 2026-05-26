@@ -19,6 +19,7 @@ interface LoadedChunk {
 }
 
 const WORLD_SEED = new WorldSeed('dracor-world-001');
+const DYNAMIC_CHUNK_SIZE = 100;
 
 export class ChunkedTerrainManager {
   private scene: Scene;
@@ -27,29 +28,14 @@ export class ChunkedTerrainManager {
   private loadedChunks = new Map<string, LoadedChunk>();
   private material: StandardMaterial;
   private chunkGen: ChunkGenerator;
-  private _gridSize: number;
   private _chunkSize: number;
-  private _gridOriginX: number;
-  private _gridOriginZ: number;
 
   constructor(scene: Scene, terrain: TerrainDefinition, config: StreamingConfig) {
     this.scene = scene;
     this.terrain = terrain;
     this.config = config;
     this.chunkGen = new ChunkGenerator(WORLD_SEED, 512);
-
-    let maxGridX = 0;
-    let maxGridZ = 0;
-    this._chunkSize = terrain.chunks[0]?.size ?? 100;
-    for (const chunk of terrain.chunks) {
-      maxGridX = Math.max(maxGridX, chunk.gridX);
-      maxGridZ = Math.max(maxGridZ, chunk.gridZ);
-    }
-    this._gridSize = Math.max(maxGridX, maxGridZ) + 1;
-
-    const totalWorldSize = this._gridSize * this._chunkSize;
-    this._gridOriginX = -totalWorldSize / 2 + this._chunkSize / 2;
-    this._gridOriginZ = -totalWorldSize / 2 + this._chunkSize / 2;
+    this._chunkSize = DYNAMIC_CHUNK_SIZE;
 
     this.material = new StandardMaterial('terrainMat', scene);
     this.material.diffuseColor = new Color3(0.14, 0.13, 0.09);
@@ -58,11 +44,38 @@ export class ChunkedTerrainManager {
     this.material.ambientColor = new Color3(0.04, 0.05, 0.03);
   }
 
+  worldToGrid(worldX: number, worldZ: number): { gridX: number; gridZ: number } {
+    return {
+      gridX: Math.floor(worldX / this._chunkSize),
+      gridZ: Math.floor(worldZ / this._chunkSize),
+    };
+  }
+
   getChunkWorldCenter(gridX: number, gridZ: number): { x: number; z: number } {
     return {
-      x: this._gridOriginX + gridX * this._chunkSize,
-      z: this._gridOriginZ + gridZ * this._chunkSize,
+      x: gridX * this._chunkSize + this._chunkSize * 0.5,
+      z: gridZ * this._chunkSize + this._chunkSize * 0.5,
     };
+  }
+
+  getChunksInRadius(playerX: number, playerZ: number, radius: number): Array<{ gridX: number; gridZ: number }> {
+    const player = this.worldToGrid(playerX, playerZ);
+    const chunkRadius = Math.ceil(radius / this._chunkSize);
+    const result: Array<{ gridX: number; gridZ: number }> = [];
+
+    for (let dz = -chunkRadius; dz <= chunkRadius; dz++) {
+      for (let dx = -chunkRadius; dx <= chunkRadius; dx++) {
+        const gx = player.gridX + dx;
+        const gz = player.gridZ + dz;
+        const center = this.getChunkWorldCenter(gx, gz);
+        const dist = Math.sqrt((playerX - center.x) ** 2 + (playerZ - center.z) ** 2);
+        if (dist <= radius) {
+          result.push({ gridX: gx, gridZ: gz });
+        }
+      }
+    }
+
+    return result;
   }
 
   private getSubdivisionsForDistance(distance: number): number {
@@ -118,7 +131,36 @@ export class ChunkedTerrainManager {
     }
   }
 
+  updateAroundPlayer(playerPosition: Vector3): void {
+    const loadDist = this.config.loadDistance;
+    const unloadDist = this.config.unloadDistance;
+
+    const needed = this.getChunksInRadius(playerPosition.x, playerPosition.z, loadDist);
+    const neededKeys = new Set(needed.map(c => `${c.gridX}_${c.gridZ}`));
+
+    for (const [key, chunk] of this.loadedChunks) {
+      if (!neededKeys.has(key)) {
+        const center = this.getChunkWorldCenter(chunk.gridX, chunk.gridZ);
+        const dist = Math.sqrt((playerPosition.x - center.x) ** 2 + (playerPosition.z - center.z) ** 2);
+        if (dist > unloadDist) {
+          this.unloadChunk(chunk.gridX, chunk.gridZ);
+        }
+      }
+    }
+
+    for (const coord of needed) {
+      const key = `${coord.gridX}_${coord.gridZ}`;
+      if (!this.loadedChunks.has(key)) {
+        const center = this.getChunkWorldCenter(coord.gridX, coord.gridZ);
+        const dist = Math.sqrt((playerPosition.x - center.x) ** 2 + (playerPosition.z - center.z) ** 2);
+        this.loadChunk(coord.gridX, coord.gridZ, dist);
+      }
+    }
+  }
+
   updateLOD(playerPosition: Vector3): void {
+    this.updateAroundPlayer(playerPosition);
+
     for (const [, chunk] of this.loadedChunks) {
       const center = this.getChunkWorldCenter(chunk.gridX, chunk.gridZ);
       const dx = playerPosition.x - center.x;
@@ -148,10 +190,7 @@ export class ChunkedTerrainManager {
     return this.terrain.chunks;
   }
 
-  get gridSize(): number { return this._gridSize; }
   get chunkSize(): number { return this._chunkSize; }
-  get gridOriginX(): number { return this._gridOriginX; }
-  get gridOriginZ(): number { return this._gridOriginZ; }
 
   dispose(): void {
     for (const [, chunk] of this.loadedChunks) {
