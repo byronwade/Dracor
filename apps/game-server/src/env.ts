@@ -4,6 +4,8 @@ export interface EnvConfig {
   port: number;
   allowedOrigins: string[];
   nodeEnv: string;
+  supabaseUrl: string;
+  supabaseServiceKey: string;
 }
 
 export function loadEnv(): EnvConfig {
@@ -23,10 +25,15 @@ export function loadEnv(): EnvConfig {
     .map((o) => o.trim())
     .filter((o) => o.length > 0);
 
+  const supabaseUrl = process.env.SUPABASE_URL || "";
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || "";
+
   return {
     port,
     allowedOrigins,
     nodeEnv,
+    supabaseUrl,
+    supabaseServiceKey,
   };
 }
 
@@ -39,5 +46,6 @@ export function logStartupConfig(): void {
     allowedOrigins: env.allowedOrigins.length > 0
       ? env.allowedOrigins.join(", ")
       : "(any — no origins configured)",
+    supabase: env.supabaseUrl ? "configured" : "not configured (saves disabled)",
   });
 }

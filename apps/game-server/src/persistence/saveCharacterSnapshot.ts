@@ -1,9 +1,19 @@
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { env } from "../env";
 import { logger } from "../logging/logger";
 
-/**
- * Save a character's position snapshot.
- * Currently logs the save; Supabase integration will be added later.
- */
+let supabase: SupabaseClient | null = null;
+
+function getClient(): SupabaseClient | null {
+  if (supabase) return supabase;
+  if (!env.supabaseUrl || !env.supabaseServiceKey) return null;
+
+  supabase = createClient(env.supabaseUrl, env.supabaseServiceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return supabase;
+}
+
 export async function saveCharacterSnapshot(
   characterId: string,
   x: number,
@@ -11,13 +21,39 @@ export async function saveCharacterSnapshot(
   z: number,
   zoneId: string
 ): Promise<void> {
-  logger.debug("Saving character snapshot", {
-    characterId,
-    x: Math.round(x * 100) / 100,
-    y: Math.round(y * 100) / 100,
-    z: Math.round(z * 100) / 100,
-    zoneId,
-  });
-  // TODO: Supabase upsert call
-  // await supabase.from('characters').update({ x, y, z, zone_id: zoneId }).eq('id', characterId);
+  const client = getClient();
+
+  if (!client) {
+    logger.debug("Supabase not configured, skipping save", { characterId });
+    return;
+  }
+
+  const roundedX = Math.round(x * 100) / 100;
+  const roundedY = Math.round(y * 100) / 100;
+  const roundedZ = Math.round(z * 100) / 100;
+
+  const { error } = await client
+    .from("characters")
+    .update({
+      position_x: roundedX,
+      position_y: roundedY,
+      position_z: roundedZ,
+      zone_id: zoneId,
+    })
+    .eq("id", characterId);
+
+  if (error) {
+    logger.error("Failed to save character snapshot", {
+      characterId,
+      error: error.message,
+    });
+  } else {
+    logger.debug("Saved character snapshot", {
+      characterId,
+      x: roundedX,
+      y: roundedY,
+      z: roundedZ,
+      zoneId,
+    });
+  }
 }

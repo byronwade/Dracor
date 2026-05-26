@@ -40,7 +40,7 @@ const sections = [
 
 export default function WorldPage() {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col pt-20">
       {/* Hero */}
       <section className="relative flex flex-col items-center justify-center px-4 pb-16 pt-24 text-center">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">

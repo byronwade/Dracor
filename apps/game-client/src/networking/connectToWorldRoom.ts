@@ -1,13 +1,20 @@
 import { Client, Room } from 'colyseus.js';
 
-/**
- * Connect to the game server's world_room via Colyseus.
- */
+export interface JoinOptions {
+  name: string;
+  characterId?: string;
+  userId?: string;
+  weapon?: string;
+  memory?: string;
+  level?: number;
+  race?: string;
+}
+
 export async function connectToWorldRoom(
   serverUrl: string,
-  playerName: string
+  options: JoinOptions
 ): Promise<Room> {
   const client = new Client(serverUrl);
-  const room = await client.joinOrCreate('world_room', { name: playerName });
+  const room = await client.joinOrCreate('world_room', options);
   return room;
 }

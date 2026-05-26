@@ -15,7 +15,7 @@ export default function DevLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-12 lg:flex-row">
+    <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 pt-20 pb-12 lg:flex-row">
       {/* Sidebar */}
       <aside className="w-full shrink-0 lg:w-56">
         <div className="sticky top-24">

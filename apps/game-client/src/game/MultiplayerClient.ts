@@ -10,7 +10,7 @@ import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import '@babylonjs/core/Meshes/Builders/planeBuilder';
 
-import { connectToWorldRoom } from '../networking/connectToWorldRoom';
+import { connectToWorldRoom, type JoinOptions } from '../networking/connectToWorldRoom';
 import type { ClientInputMessage, ChatMessagePayload, ConnectionState } from '../networking/networkTypes';
 
 interface RemotePlayer {
@@ -51,7 +51,7 @@ export class MultiplayerClient {
   private assignedName: string | null = null;
 
   private serverUrl: string | null = null;
-  private playerName: string | null = null;
+  private joinOptions: JoinOptions | null = null;
   private scene: Scene | null = null;
   private intentionalDisconnect = false;
   private reconnectAttempts = 0;
@@ -69,11 +69,11 @@ export class MultiplayerClient {
 
   async connect(
     serverUrl: string,
-    playerName: string,
+    options: JoinOptions,
     scene: Scene
   ): Promise<void> {
     this.serverUrl = serverUrl;
-    this.playerName = playerName;
+    this.joinOptions = options;
     this.scene = scene;
     this.intentionalDisconnect = false;
     this.reconnectAttempts = 0;
@@ -83,12 +83,12 @@ export class MultiplayerClient {
   }
 
   private async doConnect(): Promise<void> {
-    if (!this.serverUrl || !this.playerName || !this.scene) return;
+    if (!this.serverUrl || !this.joinOptions || !this.scene) return;
 
     this.setConnectionState('connecting');
 
     try {
-      this.room = await connectToWorldRoom(this.serverUrl, this.playerName);
+      this.room = await connectToWorldRoom(this.serverUrl, this.joinOptions);
       this.setConnectionState('connected');
       this.connectedAt = performance.now();
       this.reconnectAttempts = 0;

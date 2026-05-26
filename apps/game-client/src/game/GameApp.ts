@@ -15,30 +15,58 @@ import { CameraController } from './CameraController';
 import { MultiplayerClient } from './MultiplayerClient';
 import { ChatController } from './ChatController';
 import { GameLoop } from './GameLoop';
+import { SettingsManager } from '../systems/SettingsManager';
+import { AudioManager } from '../systems/AudioManager';
 import { createGameHud, type GameHud } from '../ui/createGameHud';
 import { createDevPanel, type DevPanel } from '../ui/createDevPanel';
 import { createMinimap, type Minimap } from '../ui/createMinimap';
+import { createMainMenu, type MainMenu } from '../ui/createMainMenu';
+import { createPauseMenu, type PauseMenu } from '../ui/createPauseMenu';
+import { createSettingsPanel, type SettingsPanel } from '../ui/createSettingsPanel';
 
 export class GameApp {
   private engine!: Engine;
   private scene!: Scene;
   private quality!: QualitySettings;
+  private sceneResult!: SceneBuildResult;
   private inputController!: InputController;
   private playerController!: PlayerController;
   private cameraController!: CameraController;
   private multiplayerClient!: MultiplayerClient;
   private chatController!: ChatController;
   private gameLoop!: GameLoop;
+  private settings!: SettingsManager;
+  private audio!: AudioManager;
   private hud!: GameHud;
   private devPanel!: DevPanel;
   private minimap!: Minimap;
+  private mainMenu!: MainMenu;
+  private pauseMenu!: PauseMenu;
+  private settingsPanel!: SettingsPanel;
   private playerName: string;
+  private characterId: string | null;
+  private userId: string | null;
+  private characterWeapon: string;
+  private characterMemory: string;
+  private characterLevel: number;
+  private characterRace: string;
+  private worldEntered = false;
 
   constructor(private canvas: HTMLCanvasElement) {
-    this.playerName = this.resolvePlayerName();
+    const params = new URLSearchParams(window.location.search);
+    this.playerName = params.get('name') || ENV.defaultPlayerName;
+    this.characterId = params.get('characterId');
+    this.userId = params.get('userId');
+    this.characterWeapon = params.get('weapon') || 'blade';
+    this.characterMemory = params.get('memory') || 'ember';
+    this.characterLevel = parseInt(params.get('level') || '1', 10) || 1;
+    this.characterRace = params.get('race') || 'dracor';
   }
 
   async start(): Promise<void> {
+    this.settings = new SettingsManager();
+    this.audio = new AudioManager(this.settings);
+
     const caps = await this.detectCapabilities();
 
     this.engine = new Engine(this.canvas, true, {
@@ -47,13 +75,16 @@ export class GameApp {
       antialias: true,
     });
 
-    const tier = autoSelectQuality(caps);
+    const savedTier = this.settings.get().qualityTier;
+    const autoTier = autoSelectQuality(caps);
+    const tier = savedTier || autoTier;
     this.quality = getQualitySettings(tier);
+    this.settings.set('qualityTier', tier);
     console.log(`[Game] Quality tier: ${tier} (WebGPU: ${caps.webgpu}, WebGL2: ${caps.webgl2})`);
 
     const builder = getSceneBuilder('ironvale_outskirts');
-    const result: SceneBuildResult = builder(this.engine, this.quality);
-    this.scene = result.scene;
+    this.sceneResult = builder(this.engine, this.quality);
+    this.scene = this.sceneResult.scene;
 
     this.inputController = new InputController();
 
@@ -63,7 +94,7 @@ export class GameApp {
       spawn.x,
       spawn.y,
       spawn.z,
-      result.getHeightAt
+      this.sceneResult.getHeightAt
     );
 
     this.cameraController = new CameraController(
@@ -77,9 +108,8 @@ export class GameApp {
     this.hud.setHealth(100, 100);
 
     this.devPanel = createDevPanel(this.engine, this.scene, this.quality);
-    this.devPanel.setQualityTier(this.quality.tier);
+    this.devPanel.setQualityTier(tier);
     this.minimap = createMinimap();
-
     this.chatController = new ChatController();
 
     this.multiplayerClient = new MultiplayerClient();
@@ -99,7 +129,17 @@ export class GameApp {
       this.chatController.addMessage(displayName, content);
     });
 
-    this.connectToServer();
+    this.settingsPanel = createSettingsPanel(this.settings, () => {
+      this.settingsPanel.close();
+    });
+
+    this.pauseMenu = createPauseMenu(this.settings, {
+      onResume: () => { this.pauseMenu.close(); },
+      onSettings: () => { this.settingsPanel.open(); },
+      onReturnToSite: () => { window.open(ENV.siteUrl, '_blank'); },
+    });
+
+    this.settings.onChange((s) => { this.applySettings(s); });
 
     this.gameLoop = new GameLoop(this.engine, this.scene, (dt) => {
       this.update(dt);
@@ -107,9 +147,35 @@ export class GameApp {
     this.gameLoop.start();
 
     window.addEventListener('resize', this.handleResize);
+
+    this.mainMenu = createMainMenu(this.playerName, {
+      onEnterWorld: () => { this.enterWorld(); },
+      onSettings: () => { this.settingsPanel.open(); },
+    });
+    this.mainMenu.show();
+
+    this.applySettings(this.settings.get());
+  }
+
+  private enterWorld(): void {
+    if (this.worldEntered) return;
+    this.worldEntered = true;
+    this.mainMenu.hide();
+    this.audio.startAmbient();
+    this.connectToServer();
+  }
+
+  private applySettings(s: ReturnType<SettingsManager['get']>): void {
+    const minimapEl = document.getElementById('minimap-container');
+    if (minimapEl) minimapEl.style.display = s.showMinimap ? 'block' : 'none';
+    const hudEl = document.getElementById('game-hud');
+    if (hudEl) hudEl.style.display = s.showHud ? 'flex' : 'none';
   }
 
   private update(dt: number): void {
+    if (!this.worldEntered) return;
+    if (this.pauseMenu.isOpen() || this.settingsPanel.isOpen()) return;
+
     const input = this.inputController.getInput();
     this.playerController.update(input, dt);
     this.multiplayerClient.interpolateRemotePlayers();
@@ -131,7 +197,15 @@ export class GameApp {
     try {
       await this.multiplayerClient.connect(
         ENV.gameServerUrl,
-        this.playerName,
+        {
+          name: this.playerName,
+          characterId: this.characterId || undefined,
+          userId: this.userId || undefined,
+          weapon: this.characterWeapon,
+          memory: this.characterMemory,
+          level: this.characterLevel,
+          race: this.characterRace,
+        },
         this.scene
       );
       const assigned = this.multiplayerClient.getAssignedName();
@@ -152,7 +226,6 @@ export class GameApp {
       maxTextureSize: 0, maxDrawBuffers: 0, floatTextures: false,
       instancedArrays: false, deviceTier: 'low', estimatedVRAM: 0,
     };
-
     if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
       try {
         const gpu = (navigator as unknown as { gpu: GPU }).gpu;
@@ -168,7 +241,6 @@ export class GameApp {
         }
       } catch { /* WebGPU not available */ }
     }
-
     if (!caps.webgpu || caps.maxTextureSize === 0) {
       const testCanvas = document.createElement('canvas');
       const gl2 = testCanvas.getContext('webgl2');
@@ -201,13 +273,6 @@ export class GameApp {
     return caps;
   }
 
-  private resolvePlayerName(): string {
-    const urlParams = new URLSearchParams(window.location.search);
-    const nameFromUrl = urlParams.get('name');
-    if (nameFromUrl) return nameFromUrl;
-    return ENV.defaultPlayerName;
-  }
-
   private handleResize = (): void => { this.engine.resize(); };
 
   dispose(): void {
@@ -218,9 +283,13 @@ export class GameApp {
     this.cameraController.dispose();
     this.playerController.dispose();
     this.chatController.dispose();
+    this.audio.dispose();
     this.hud.dispose();
     this.devPanel.dispose();
     this.minimap.dispose();
+    this.mainMenu.dispose();
+    this.pauseMenu.dispose();
+    this.settingsPanel.dispose();
     this.scene.dispose();
     this.engine.dispose();
   }

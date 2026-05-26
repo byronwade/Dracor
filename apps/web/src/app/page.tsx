@@ -1,212 +1,182 @@
 import Link from "next/link";
+import Image from "next/image";
 
-const features = [
+const PILLARS = [
   {
-    icon: "⚔️",
+    number: "01",
     title: "Short Meaningful Contracts",
     description:
-      "Every quest is a contract with real stakes. Complete objectives in focused sessions that respect your time while delivering deep narrative impact.",
+      "Every quest is a contract with real stakes. Complete objectives in focused sessions that respect your time.",
   },
   {
-    icon: "🏘️",
+    number: "02",
     title: "A Living Frontier Town",
     description:
-      "Ironvale grows and changes based on collective player actions. Build shops, fortify walls, and watch the town transform from ruins to a thriving settlement.",
+      "Ironvale grows based on collective player actions. Build, fortify, and watch it transform.",
   },
   {
-    icon: "📜",
-    title: "Public Events & Player Deeds",
+    number: "03",
+    title: "Public Deeds",
     description:
-      "Your actions echo through the world. Slay a dragon threatening the pass? The town crier announces it. Every deed shapes the shared story.",
+      "Your actions echo through the world. Every deed shapes the shared story of Ironvale.",
   },
   {
-    icon: "🔥",
-    title: "Weapon + Dragon Memory Progression",
+    number: "04",
+    title: "Dragon Memory Progression",
     description:
-      "Your weapon grows with you, unlocking abilities tied to your dragon lineage. Ember, Stone, or Storm — each memory path offers unique mastery.",
+      "Your weapon grows with your lineage. Ember, Stone, or Storm — each path offers unique mastery.",
   },
   {
-    icon: "⚖️",
-    title: "No Pay-to-Win Foundation",
+    number: "05",
+    title: "No Pay-to-Win",
     description:
-      "Skill and dedication determine your power. Cosmetics and convenience only — never combat advantage. The First Road is earned, not bought.",
+      "Skill and dedication determine power. The First Road is earned, not bought.",
   },
   {
-    icon: "🍺",
+    number: "06",
     title: "Social Town Life",
     description:
-      "Gather at the tavern, trade at the market, duel in the arena. Ironvale is a living community where relationships matter as much as combat prowess.",
+      "Gather at the tavern, trade at the market, duel in the arena. Relationships matter.",
   },
 ];
 
 export default function HomePage() {
   return (
     <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="relative flex min-h-[90vh] flex-col items-center justify-center px-4 text-center">
-        {/* Background decoration */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-1/4 h-96 w-96 -translate-x-1/2 rounded-full bg-orange-600/5 blur-3xl" />
-          <div className="absolute bottom-1/4 left-1/3 h-64 w-64 rounded-full bg-amber-500/5 blur-3xl" />
+      {/* Hero */}
+      <section className="relative flex h-screen flex-col items-center justify-center overflow-hidden">
+        <div className="absolute inset-0">
+          <Image
+            src="/renders/hero-shrine.svg"
+            alt=""
+            fill
+            priority
+            className="object-cover opacity-30 animate-hero-drift"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-surface/40 via-transparent to-surface" />
         </div>
 
-        <div className="relative z-10 max-w-4xl">
-          <h1 className="ember-gradient-text mb-6 text-7xl font-black tracking-tighter sm:text-8xl md:text-9xl">
+        <div className="relative z-10 text-center px-8">
+          <h1
+            className="text-hero font-extrabold uppercase tracking-monument text-content-primary mb-6"
+            style={{ textIndent: "0.3em" }}
+          >
             DRACOR
           </h1>
-          <p className="mb-4 text-xl text-stone-300 sm:text-2xl md:text-3xl">
-            Awaken the dragon memory. Rebuild Ironvale. Walk the First Road.
+          <p className="text-sm sm:text-base font-normal uppercase tracking-subtitle text-content-muted mb-12">
+            Awaken the Dragon Memory
           </p>
-          <p className="mx-auto mb-10 max-w-2xl text-base text-stone-400 sm:text-lg">
-            A dark fantasy MMO built on meaningful contracts, a living frontier
-            town shaped by player deeds, and a progression system rooted in
-            ancient dragon lineage. No pay-to-win. No endless grind. Just the
-            road ahead and the choices you make.
-          </p>
-
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link href="/play" className="btn-primary text-lg">
-              Play Now
-            </Link>
-            <a href="#features" className="btn-secondary text-lg">
-              Learn More
-            </a>
-          </div>
+          <Link href="/play" className="cta-outline">
+            Enter Ironvale
+          </Link>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <svg
-            className="h-6 w-6 text-stone-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 14l-7 7m0 0l-7-7m7 7V3"
-            />
-          </svg>
+        <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-px h-12 bg-gradient-to-b from-transparent to-content-dim" />
+      </section>
+
+      {/* Statement */}
+      <section className="mx-auto max-w-[900px] px-8 py-32 sm:py-40">
+        <p className="text-statement font-light leading-relaxed text-content-secondary">
+          A dark fantasy where{" "}
+          <strong className="font-medium text-content-primary">
+            every contract matters
+          </strong>
+          . No endless grind. No pay-to-win. Just a living frontier town shaped
+          by{" "}
+          <em className="not-italic text-ember">your deeds</em>, a weapon that
+          grows with your lineage, and twenty-minute sessions that respect your
+          time while delivering real narrative weight.
+        </p>
+      </section>
+
+      {/* Visual Break 1 */}
+      <section className="relative h-[60vh] overflow-hidden border-y border-line-subtle">
+        <Image
+          src="/renders/road-dawn.svg"
+          alt="The road through Ironvale Outskirts"
+          fill
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-surface/60 via-transparent to-surface/60" />
+      </section>
+
+      {/* Pillars */}
+      <section className="mx-auto max-w-[1200px] px-8 py-24 sm:py-32 lg:px-12">
+        <div className="mb-16 sm:mb-20">
+          <h2 className="text-[11px] font-semibold uppercase tracking-label text-content-muted mb-4">
+            Six Pillars
+          </h2>
+          <div className="h-px w-12 bg-content-faint" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-px bg-line-subtle border border-line-subtle sm:grid-cols-2">
+          {PILLARS.map((pillar) => (
+            <div key={pillar.number} className="bg-surface p-8 sm:p-12">
+              <span className="text-[11px] font-semibold tracking-label text-ember mb-4 block">
+                {pillar.number}
+              </span>
+              <h3 className="text-lg font-semibold text-content-primary mb-3 tracking-wide">
+                {pillar.title}
+              </h3>
+              <p className="text-sm leading-relaxed text-content-muted">
+                {pillar.description}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="px-4 py-24">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="mb-4 text-center text-3xl font-bold text-stone-100 sm:text-4xl">
-            The Six Pillars
-          </h2>
-          <p className="mb-16 text-center text-lg text-stone-400">
-            What makes Dracor different from every other MMO.
-          </p>
+      {/* Visual Break 2 */}
+      <section className="relative h-[60vh] overflow-hidden border-y border-line-subtle">
+        <Image
+          src="/renders/shrine-closeup.svg"
+          alt="The shrine, shrouded in fog"
+          fill
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-surface/60 via-transparent to-surface/60" />
+      </section>
 
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {features.map((feature) => (
-              <div key={feature.title} className="card-dark">
-                <div className="mb-4 text-4xl">{feature.icon}</div>
-                <h3 className="mb-2 text-xl font-semibold text-stone-100">
-                  {feature.title}
-                </h3>
-                <p className="text-sm leading-relaxed text-stone-400">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Final CTA */}
+      <section className="py-32 sm:py-40 text-center px-8">
+        <h2 className="text-section font-bold uppercase tracking-headline text-content-primary mb-6">
+          Walk the First Road
+        </h2>
+        <p className="text-[15px] text-content-muted mb-12 tracking-wide">
+          Create your character. Choose your lineage. Enter Ironvale.
+        </p>
+        <Link href="/play" className="cta-filled">
+          Play Now
+        </Link>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-stone-800 px-4 py-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">
-                Play
-              </h4>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="/play"
-                    className="text-sm text-stone-400 transition-colors hover:text-stone-200"
-                  >
-                    Launch Game
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/account"
-                    className="text-sm text-stone-400 transition-colors hover:text-stone-200"
-                  >
-                    Account Dashboard
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">
-                Discover
-              </h4>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="/world"
-                    className="text-sm text-stone-400 transition-colors hover:text-stone-200"
-                  >
-                    The World
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/technology"
-                    className="text-sm text-stone-400 transition-colors hover:text-stone-200"
-                  >
-                    Technology
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">
-                Developers
-              </h4>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    href="/dev"
-                    className="text-sm text-stone-400 transition-colors hover:text-stone-200"
-                  >
-                    Developer Portal
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/dev/roadmap"
-                    className="text-sm text-stone-400 transition-colors hover:text-stone-200"
-                  >
-                    Roadmap
-                  </Link>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="mb-3 text-sm font-semibold uppercase tracking-wider text-stone-500">
-                About
-              </h4>
-              <p className="text-sm text-stone-500">
-                A Waybound Production &mdash; Forging worlds worth fighting for.
-              </p>
-            </div>
+      <footer className="border-t border-line-subtle">
+        <div className="mx-auto max-w-[1200px] flex flex-col sm:flex-row items-center sm:items-end justify-between gap-8 px-8 py-16 lg:px-12">
+          <div>
+            <p className="text-xs font-bold tracking-label text-content-dim mb-2">
+              DRACOR
+            </p>
+            <p className="text-xs text-content-faint">
+              A Waybound Production
+            </p>
           </div>
-          <div className="text-center">
-            <p className="ember-gradient-text mb-2 text-lg font-bold">
-              Dracor: First Road
-            </p>
-            <p className="text-sm text-stone-500">
-              A Waybound Production &mdash; Forging worlds worth fighting for.
-            </p>
+          <div className="flex gap-8">
+            {["World", "Technology", "Developer", "Roadmap"].map((label) => (
+              <Link
+                key={label}
+                href={
+                  label === "Developer"
+                    ? "/dev"
+                    : label === "Roadmap"
+                      ? "/dev/roadmap"
+                      : `/${label.toLowerCase()}`
+                }
+                className="text-xs text-content-dim transition-colors hover:text-content-secondary tracking-wide"
+              >
+                {label}
+              </Link>
+            ))}
           </div>
         </div>
       </footer>

@@ -9,64 +9,105 @@ import { AuthGuard } from "@/components/AuthGuard";
 const GAME_CLIENT_URL =
   process.env.NEXT_PUBLIC_GAME_CLIENT_URL || "http://localhost:5173";
 
+interface SelectedCharacter {
+  id: string;
+  name: string;
+  level: number;
+  weapon: string;
+  memory: string;
+  ancestry: string;
+  zone_id: string;
+}
+
 function PlayContent() {
   const searchParams = useSearchParams();
-  const characterName = searchParams.get("name");
-  const [hasCharacters, setHasCharacters] = useState<boolean | null>(null);
-  const [selectedCharacter, setSelectedCharacter] = useState<string | null>(
-    characterName
-  );
+  const characterIdParam = searchParams.get("characterId");
+  const characterNameParam = searchParams.get("name");
+  const [character, setCharacter] = useState<SelectedCharacter | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkCharacters() {
+    async function loadCharacter() {
       const supabase = getSupabaseClient();
-
       if (!supabase) {
-        setHasCharacters(true);
-        if (!selectedCharacter) {
-          setSelectedCharacter("Kael Ashborn");
-        }
+        setCharacter({
+          id: "mock-1",
+          name: characterNameParam || "Kael Ashborn",
+          level: 12,
+          weapon: "blade",
+          memory: "ember",
+          ancestry: "dracor",
+          zone_id: "ironvale_town",
+        });
+        setLoading(false);
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+      setUserId(user.id);
 
-      if (!user) return;
-
-      const { data, error } = await supabase
+      let query = supabase
         .from("characters")
-        .select("name")
-        .eq("user_id", user.id)
-        .limit(1);
+        .select("id, name, level, weapon, memory, ancestry, zone_id")
+        .eq("user_id", user.id);
 
-      if (error) {
-        console.error("Error checking characters:", error);
-        setHasCharacters(false);
-        return;
+      if (characterIdParam) {
+        query = query.eq("id", characterIdParam);
+      } else if (characterNameParam) {
+        query = query.eq("name", characterNameParam);
       }
 
-      setHasCharacters(data && data.length > 0);
-      if (data && data.length > 0 && !selectedCharacter) {
-        setSelectedCharacter(data[0].name);
+      const { data, error } = await query.limit(1).single();
+
+      if (error || !data) {
+        const { data: fallback } = await supabase
+          .from("characters")
+          .select("id, name, level, weapon, memory, ancestry, zone_id")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (fallback) setCharacter(fallback);
+      } else {
+        setCharacter(data);
       }
+
+      setLoading(false);
     }
 
-    checkCharacters();
-  }, [selectedCharacter]);
+    loadCharacter();
+  }, [characterIdParam, characterNameParam]);
 
   function launchGame() {
+    if (!character) return;
     const url = new URL(GAME_CLIENT_URL);
-    if (selectedCharacter) {
-      url.searchParams.set("name", selectedCharacter);
-    }
+    url.searchParams.set("name", character.name);
+    url.searchParams.set("characterId", character.id);
+    if (userId) url.searchParams.set("userId", userId);
+    url.searchParams.set("weapon", character.weapon);
+    url.searchParams.set("memory", character.memory);
+    url.searchParams.set("level", String(character.level));
+    url.searchParams.set("race", character.ancestry);
     window.open(url.toString(), "_blank", "noopener,noreferrer");
   }
 
-  if (hasCharacters === false || (!selectedCharacter && hasCharacters !== null)) {
+  if (loading) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-12">
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 text-4xl animate-pulse">🐉</div>
+          <p className="text-stone-400">Loading character...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!character) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 pt-20 pb-12">
         <div className="card-dark flex flex-col items-center py-16 text-center">
           <div className="mb-4 text-5xl">🐉</div>
           <h1 className="mb-2 text-2xl font-bold text-stone-100">
@@ -75,7 +116,7 @@ function PlayContent() {
           <p className="mb-6 text-stone-400">
             You need to create or select a character before entering the world.
           </p>
-          <Link href="/account/characters" className="btn-primary">
+          <Link href="/characters" className="btn-primary">
             Go to Characters
           </Link>
         </div>
@@ -84,36 +125,37 @@ function PlayContent() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
+    <div className="mx-auto max-w-2xl px-4 pt-20 pb-12">
       <div className="mb-8 text-center">
         <h1 className="mb-2 text-3xl font-bold text-stone-100">Enter the World</h1>
         <p className="text-stone-400">
-          Select a character and launch the game client to step into Ironvale.
+          Your character is ready. Launch the game client to step into Ironvale.
         </p>
       </div>
 
-      {/* Character info */}
       <div className="card-dark mb-8">
         <div className="flex items-center gap-4">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-orange-500/10 text-2xl">
-            🗡️
+            {character.weapon === "blade" ? "⚔️" : character.weapon === "bow" ? "🏹" : "🪄"}
           </div>
-          <div>
+          <div className="flex-1">
             <p className="text-sm text-stone-400">Playing as</p>
             <p className="text-xl font-semibold text-stone-100">
-              {selectedCharacter || "Unknown"}
+              {character.name}
+            </p>
+            <p className="text-xs text-stone-500">
+              Level {character.level} {character.ancestry} &bull; {character.memory} memory &bull; {character.weapon}
             </p>
           </div>
           <Link
-            href="/account/characters"
-            className="ml-auto text-sm text-orange-500 transition-colors hover:text-orange-400"
+            href="/characters"
+            className="text-sm text-orange-500 transition-colors hover:text-orange-400"
           >
             Change
           </Link>
         </div>
       </div>
 
-      {/* Launch button */}
       <div className="card-dark text-center">
         <button
           onClick={launchGame}
@@ -130,8 +172,7 @@ function PlayContent() {
               open the game client in a new tab.
             </li>
             <li>
-              The client will automatically connect using your selected
-              character.
+              The client will connect with your character data automatically.
             </li>
             <li>
               If the client doesn&apos;t load, ensure the game server is running
@@ -150,7 +191,6 @@ function PlayContent() {
         </div>
       </div>
 
-      {/* Status indicators */}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div className="card-dark flex items-center gap-3">
           <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />

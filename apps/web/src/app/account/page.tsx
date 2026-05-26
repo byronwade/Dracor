@@ -44,7 +44,7 @@ function AccountDashboardContent() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12">
+    <div className="mx-auto max-w-6xl px-4 pt-20 pb-12">
       {/* Welcome */}
       <div className="mb-10">
         <h1 className="mb-2 text-3xl font-bold text-stone-100">

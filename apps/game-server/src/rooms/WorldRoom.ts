@@ -137,6 +137,9 @@ export class WorldRoom extends Room<WorldState> {
 
     name = this.makeUniqueName(name);
 
+    const validWeapons = ["blade", "bow", "staff"];
+    const validMemories = ["ember", "stone", "storm"];
+
     const player = new PlayerState();
     player.id = client.sessionId;
     player.name = name;
@@ -146,9 +149,9 @@ export class WorldRoom extends Room<WorldState> {
     player.yaw = 0;
     player.health = 100;
     player.maxHealth = 100;
-    player.level = 1;
-    player.weapon = "blade";
-    player.memory = "ember";
+    player.level = Math.max(1, Math.min(100, parseInt(options?.level, 10) || 1));
+    player.weapon = validWeapons.includes(options?.weapon) ? options.weapon : "blade";
+    player.memory = validMemories.includes(options?.memory) ? options.memory : "ember";
     player.isMoving = false;
     player.lastInputSeq = 0;
 

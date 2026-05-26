@@ -137,7 +137,7 @@ function CharactersContent() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12">
+    <div className="mx-auto max-w-6xl px-4 pt-20 pb-12">
       {/* Header */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -211,7 +211,7 @@ function CharactersContent() {
 
               <div className="mt-auto pt-4">
                 <Link
-                  href={`/play?name=${encodeURIComponent(character.name)}`}
+                  href={`/play?characterId=${encodeURIComponent(character.id)}&name=${encodeURIComponent(character.name)}`}
                   className="btn-primary w-full text-center text-sm"
                 >
                   Select &amp; Play
