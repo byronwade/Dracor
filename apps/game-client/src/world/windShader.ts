@@ -198,3 +198,11 @@ export function updateWind(deltaTime: number): void {
     mat.setVector2('windDirection', new Vector2(wind.directionX, wind.directionZ));
   }
 }
+
+export function resetWindState(): void {
+  if (globalWindState) {
+    globalWindState.materials = [];
+    globalWindState.time = 0;
+  }
+  globalWindState = null;
+}

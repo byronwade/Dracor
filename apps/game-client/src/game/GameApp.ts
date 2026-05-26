@@ -23,14 +23,17 @@ import { createMinimap, type Minimap } from '../ui/createMinimap';
 import { createMainMenu, type MainMenu } from '../ui/createMainMenu';
 import { createPauseMenu, type PauseMenu } from '../ui/createPauseMenu';
 import { createSettingsPanel, type SettingsPanel } from '../ui/createSettingsPanel';
-import type { DayNightCycle } from '../systems/DayNightCycle';
+import { createLoadingScreen, type LoadingScreen } from '../ui/createLoadingScreen';
+import type { AtmosphereEngine } from '@dracor/atmosphere';
+import type { BabylonAtmosphereRenderer } from '../atmosphere/BabylonAtmosphereRenderer';
 
 export class GameApp {
   private engine!: Engine;
   private scene!: Scene;
   private quality!: QualitySettings;
   private sceneResult!: SceneBuildResult;
-  private dayNight: DayNightCycle | null = null;
+  private atmosphereEngine: AtmosphereEngine | null = null;
+  private atmosphereRenderer: BabylonAtmosphereRenderer | null = null;
   private inputController!: InputController;
   private playerController!: PlayerController;
   private cameraController!: CameraController;
@@ -45,6 +48,7 @@ export class GameApp {
   private mainMenu!: MainMenu;
   private pauseMenu!: PauseMenu;
   private settingsPanel!: SettingsPanel;
+  private loadingScreen!: LoadingScreen;
   private playerName: string;
   private characterId: string | null;
   private userId: string | null;
@@ -70,10 +74,16 @@ export class GameApp {
     console.log(`[GameApp] Canvas: ${this.canvas.id}, ${this.canvas.width}x${this.canvas.height}`);
     console.log(`[GameApp] Player: ${this.playerName}, race: ${this.characterRace}, weapon: ${this.characterWeapon}`);
 
+    this.loadingScreen = createLoadingScreen();
+    this.loadingScreen.updateStatus('Detecting hardware...');
+    this.loadingScreen.updateProgress(5);
+
     this.settings = new SettingsManager();
     this.audio = new AudioManager(this.settings);
 
     const caps = await this.detectCapabilities();
+    this.loadingScreen.updateStatus('Creating engine...');
+    this.loadingScreen.updateProgress(15);
 
     this.engine = new Engine(this.canvas, true, {
       preserveDrawingBuffer: false,
@@ -88,10 +98,17 @@ export class GameApp {
     this.settings.set('qualityTier', tier);
     console.log(`[Game] Quality tier: ${tier} (WebGPU: ${caps.webgpu}, WebGL2: ${caps.webgl2})`);
 
+    this.loadingScreen.updateStatus('Loading terrain...');
+    this.loadingScreen.updateProgress(25);
+
     const builder = getSceneBuilder('ironvale_outskirts');
     this.sceneResult = await builder(this.engine, this.quality);
     this.scene = this.sceneResult.scene;
-    this.dayNight = this.sceneResult.dayNight;
+    this.atmosphereEngine = this.sceneResult.atmosphereEngine;
+    this.atmosphereRenderer = this.sceneResult.atmosphereRenderer;
+
+    this.loadingScreen.updateStatus('Spawning player...');
+    this.loadingScreen.updateProgress(60);
 
     this.inputController = new InputController();
     this.inputController.attachCanvas(this.canvas);
@@ -115,6 +132,9 @@ export class GameApp {
       this.playerController.getMesh(),
       this.sceneResult.getHeightAt
     );
+
+    this.loadingScreen.updateStatus('Preparing interface...');
+    this.loadingScreen.updateProgress(80);
 
     this.hud = createGameHud();
     this.hud.setPlayerName(this.playerName);
@@ -159,12 +179,18 @@ export class GameApp {
 
     this.settings.onChange((s) => { this.applySettings(s); });
 
+    this.loadingScreen.updateStatus('Starting game loop...');
+    this.loadingScreen.updateProgress(95);
+
     this.gameLoop = new GameLoop(this.engine, this.scene, (dt) => {
       this.update(dt);
     });
     this.gameLoop.start();
 
     window.addEventListener('resize', this.handleResize);
+
+    this.loadingScreen.updateProgress(100);
+    this.loadingScreen.hide();
 
     this.mainMenu = createMainMenu(this.playerName, {
       onEnterWorld: () => { this.enterWorld(); },
@@ -209,7 +235,10 @@ export class GameApp {
       this.playerController.update(input, dt);
     }
 
-    if (this.dayNight) this.dayNight.update(dt);
+    if (this.atmosphereEngine && this.atmosphereRenderer) {
+      this.atmosphereEngine.update(dt);
+      this.atmosphereRenderer.update(this.atmosphereEngine.getState());
+    }
     this.sceneResult.updateWind(dt);
 
     this.multiplayerClient.interpolateRemotePlayers();
@@ -324,6 +353,7 @@ export class GameApp {
     this.mainMenu.dispose();
     this.pauseMenu.dispose();
     this.settingsPanel.dispose();
+    this.loadingScreen.dispose();
     this.scene.dispose();
     this.engine.dispose();
   }

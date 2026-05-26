@@ -25,6 +25,14 @@ let deadTreeMat: StandardMaterial | null = null;
 let bushMat: StandardMaterial | null = null;
 let grassMat: StandardMaterial | null = null;
 
+export function resetFoliageMaterials(): void {
+  pineNeedleMat = null;
+  pineTrunkMat = null;
+  deadTreeMat = null;
+  bushMat = null;
+  grassMat = null;
+}
+
 function ensureFallbackMaterials(scene: Scene): void {
   if (pineNeedleMat) return;
 

@@ -5,14 +5,16 @@ import {
   buildIronvaleOutskirtsScene,
   type QualitySettings,
 } from './IronvaleOutskirtsScene';
-import type { DayNightCycle } from '../systems/DayNightCycle';
+import type { AtmosphereEngine } from '@dracor/atmosphere';
+import type { BabylonAtmosphereRenderer } from '../atmosphere/BabylonAtmosphereRenderer';
 
 export type SceneName = 'ironvale_outskirts';
 
 export interface SceneBuildResult {
   scene: Scene;
   getHeightAt: (x: number, z: number) => number;
-  dayNight: DayNightCycle | null;
+  atmosphereEngine: AtmosphereEngine;
+  atmosphereRenderer: BabylonAtmosphereRenderer;
   updateWind: (dt: number) => void;
 }
 
@@ -24,7 +26,8 @@ const SCENE_BUILDERS: Record<SceneName, SceneBuilder> = {
     return {
       scene: result.scene,
       getHeightAt: result.getHeightAt,
-      dayNight: result.dayNight,
+      atmosphereEngine: result.atmosphereEngine,
+      atmosphereRenderer: result.atmosphereRenderer,
       updateWind: result.updateWind,
     };
   },

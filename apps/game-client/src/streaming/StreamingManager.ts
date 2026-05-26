@@ -8,17 +8,9 @@ import { FoliageStreamingManager } from './FoliageStreamingManager';
 import { VRAMBudgetManager } from './VRAMBudgetManager';
 import type { ExclusionData } from '../world/placementEngine';
 
-import { createRoadFromManifest } from '../world/createRoadFromManifest';
-import { createShrineFromManifest } from '../world/createShrineFromManifest';
-import { createLandmarksFromManifest } from '../world/createLandmarksFromManifest';
-import { createWater } from '../world/createWater';
-import { createSkyAndAtmosphere, type SkyResult } from '../world/createSkyAndAtmosphere';
-import { createDistantMountains } from '../world/createDistantMountains';
-
 export interface StreamingSceneResult {
   getHeightAt: HeightSampler;
   updateWind: (dt: number) => void;
-  sky: SkyResult;
 }
 
 const STREAMING_CONFIGS: Record<string, StreamingConfig> = {
@@ -162,14 +154,11 @@ export class StreamingManager {
   async loadInitialArea(spawnPosition: Vector3): Promise<StreamingSceneResult> {
     console.log('[Streaming] Loading initial area...');
 
-    const sky = createSkyAndAtmosphere(this.scene, this.quality);
-
     await this.foliage.generateAllPlacements(
       this.manifest.foliage, this.manifest.rocks, this.exclusions
     );
 
     this.terrain.updateAroundPlayer(spawnPosition);
-
     this.foliage.updateInstanceBuffers(spawnPosition);
 
     const chunkCount = this.terrain.getChunksInRadius(
@@ -180,7 +169,6 @@ export class StreamingManager {
     return {
       getHeightAt: this.terrain.getHeightAt,
       updateWind: this.foliage.getUpdateWind(),
-      sky,
     };
   }
 

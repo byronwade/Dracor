@@ -47,7 +47,14 @@ export function createGameHud(): GameHud {
   nameEl.textContent = 'Wanderer';
   container.appendChild(nameEl);
 
-  // Health bar container
+  // Health row: bar + numeric text
+  const healthRow = document.createElement('div');
+  healthRow.style.cssText = `
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  `;
+
   const healthContainer = document.createElement('div');
   healthContainer.style.cssText = `
     width: 140px;
@@ -62,12 +69,24 @@ export function createGameHud(): GameHud {
   healthFill.style.cssText = `
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, #8b2020, #c04040);
+    background: linear-gradient(90deg, #206020, #40a040);
     border-radius: 3px;
     transition: width 0.3s ease;
   `;
   healthContainer.appendChild(healthFill);
-  container.appendChild(healthContainer);
+  healthRow.appendChild(healthContainer);
+
+  const healthText = document.createElement('div');
+  healthText.style.cssText = `
+    color: rgba(200, 160, 160, 0.7);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  `;
+  healthText.textContent = '100/100';
+  healthRow.appendChild(healthText);
+
+  container.appendChild(healthRow);
 
   document.body.appendChild(container);
 
@@ -81,6 +100,15 @@ export function createGameHud(): GameHud {
     setHealth(current: number, max: number) {
       const pct = Math.max(0, Math.min(100, (current / max) * 100));
       healthFill.style.width = `${pct}%`;
+      healthText.textContent = `${Math.round(current)}/${Math.round(max)}`;
+
+      if (pct > 60) {
+        healthFill.style.background = 'linear-gradient(90deg, #206020, #40a040)';
+      } else if (pct > 30) {
+        healthFill.style.background = 'linear-gradient(90deg, #8b6b20, #c0a040)';
+      } else {
+        healthFill.style.background = 'linear-gradient(90deg, #8b2020, #c04040)';
+      }
     },
     dispose() {
       container.remove();

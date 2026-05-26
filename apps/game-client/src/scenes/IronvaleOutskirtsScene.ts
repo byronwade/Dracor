@@ -567,12 +567,14 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
 
 // ─── Scene Builder ───
 
-import { DayNightCycle } from '../systems/DayNightCycle';
+import { createAtmosphereEngine, type AtmosphereEngine } from '@dracor/atmosphere';
+import { BabylonAtmosphereRenderer } from '../atmosphere/BabylonAtmosphereRenderer';
 
 export interface IronvaleSceneResult {
   scene: Scene;
   getHeightAt: (x: number, z: number) => number;
-  dayNight: DayNightCycle;
+  atmosphereEngine: AtmosphereEngine;
+  atmosphereRenderer: BabylonAtmosphereRenderer;
   updateWind: (dt: number) => void;
   streamingManager: StreamingManager;
 }
@@ -583,12 +585,17 @@ export async function buildIronvaleOutskirtsScene(
 ): Promise<IronvaleSceneResult> {
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.45, 0.52, 0.62, 1.0);
-  scene.fogMode = Scene.FOGMODE_EXP2;
-  scene.fogDensity = 0.006;
-  scene.fogColor = new Color3(0.45, 0.52, 0.62);
   scene.ambientColor = new Color3(0.15, 0.15, 0.18);
 
-  const dayNight = new DayNightCycle(scene, quality, 0.38);
+  const atmosphereEngine = createAtmosphereEngine({
+    initialTime: 0.38,
+    dayLengthMinutes: 20,
+    weatherSeed: 42,
+    biomeId: 'forest',
+  });
+
+  const atmosphereRenderer = new BabylonAtmosphereRenderer(scene);
+  atmosphereRenderer.update(atmosphereEngine.getState());
 
   const streamingManager = new StreamingManager(scene, quality, IRONVALE_OUTSKIRTS);
   const spawnPos = new Vector3(
@@ -598,18 +605,17 @@ export async function buildIronvaleOutskirtsScene(
   );
   const streamResult = await streamingManager.loadInitialArea(spawnPos);
 
-  dayNight.bindSky(streamResult.sky.skyboxMaterial, streamResult.sky.horizonMat);
-
   createTownLights(scene, streamResult.getHeightAt);
 
   if (quality.postProcessingEnabled) {
-    setupPostProcessing(scene, quality, dayNight);
+    setupPostProcessing(scene, quality);
   }
 
   return {
     scene,
     getHeightAt: streamResult.getHeightAt,
-    dayNight,
+    atmosphereEngine,
+    atmosphereRenderer,
     updateWind: streamResult.updateWind,
     streamingManager,
   };
@@ -638,7 +644,7 @@ function createTownLights(scene: Scene, getHeightAt: (x: number, z: number) => n
   }
 }
 
-function setupPostProcessing(scene: Scene, quality: QualitySettings, dayNight: DayNightCycle): void {
+function setupPostProcessing(scene: Scene, quality: QualitySettings): void {
   scene.onActiveCameraChanged.addOnce(() => {
     const camera = scene.activeCamera;
     if (!camera) return;
@@ -677,6 +683,5 @@ function setupPostProcessing(scene: Scene, quality: QualitySettings, dayNight: D
       pipeline.chromaticAberration.radialIntensity = 0.5;
     }
 
-    dayNight.bindPipeline(pipeline);
   });
 }

@@ -12,6 +12,7 @@ import '@babylonjs/core/Meshes/Builders/planeBuilder';
 
 import { connectToWorldRoom, type JoinOptions } from '../networking/connectToWorldRoom';
 import type { ClientInputMessage, ChatMessagePayload, ConnectionState } from '../networking/networkTypes';
+import { createConnectionStatus, type ConnectionStatus } from '../ui/createConnectionStatus';
 
 interface RemotePlayer {
   name: string;
@@ -59,6 +60,8 @@ export class MultiplayerClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private visibilityHandler: (() => void) | null = null;
 
+  private connectionStatus: ConnectionStatus = createConnectionStatus();
+
   private totalMessagesSent = 0;
   private totalMessagesReceived = 0;
   private sentWindow: number[] = [];
@@ -79,6 +82,7 @@ export class MultiplayerClient {
     this.intentionalDisconnect = false;
     this.reconnectAttempts = 0;
 
+    this.connectionStatus.show('connecting');
     this.setupVisibilityHandler();
     await this.doConnect();
   }
@@ -91,6 +95,7 @@ export class MultiplayerClient {
     try {
       this.room = await connectToWorldRoom(this.serverUrl, this.joinOptions);
       this.setConnectionState('connected');
+      this.connectionStatus.show('connected');
       this.connectedAt = performance.now();
       this.reconnectAttempts = 0;
       this.setupListeners(this.scene);
@@ -107,6 +112,7 @@ export class MultiplayerClient {
     if (this.intentionalDisconnect) return;
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       console.warn(`[MP] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`);
+      this.connectionStatus.show('offline');
       this.onChatMessage?.('', 'Connection lost. Refresh to reconnect.', true);
       return;
     }
@@ -117,6 +123,7 @@ export class MultiplayerClient {
 
     console.log(`[MP] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
     this.setConnectionState('connecting');
+    this.connectionStatus.show('reconnecting', this.reconnectAttempts);
     this.onChatMessage?.('', `Reconnecting... (attempt ${this.reconnectAttempts})`, true);
 
     this.reconnectTimer = setTimeout(async () => {
@@ -274,6 +281,7 @@ export class MultiplayerClient {
 
       if (!this.intentionalDisconnect) {
         this.setConnectionState('disconnected');
+        this.connectionStatus.show('disconnected');
         this.attemptReconnect();
       } else {
         this.setConnectionState('disconnected');
@@ -392,6 +400,7 @@ export class MultiplayerClient {
     }
     this.seenMessageIds.clear();
     this.setConnectionState('disconnected');
+    this.connectionStatus.dispose();
   }
 
   private emitPlayerCount(): void {
