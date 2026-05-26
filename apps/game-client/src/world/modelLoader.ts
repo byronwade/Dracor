@@ -30,6 +30,13 @@ async function loadContainer(fileName: string, scene: Scene): Promise<AssetConta
   try {
     const container = await LoadAssetContainerAsync(url, scene);
 
+    for (const mat of container.materials) {
+      scene.addMaterial(mat);
+    }
+    for (const tex of container.textures) {
+      scene.addTexture(tex);
+    }
+
     for (const mesh of container.meshes) {
       mesh.setEnabled(false);
       mesh.isVisible = false;
