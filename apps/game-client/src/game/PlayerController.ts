@@ -20,6 +20,11 @@ const GROUND_SNAP_THRESHOLD = 0.5;
 const YAW_TURN_SPEED = 12.0;
 const MESH_SMOOTH_FACTOR = 0.18;
 const NETWORK_SEND_INTERVAL = 1000 / 20;
+const SLOPE_SAMPLE_DIST = 0.5;
+const UPHILL_PENALTY = 0.4;
+const DOWNHILL_BOOST = 0.15;
+const LAND_DECEL_DURATION = 0.15;
+const LAND_DECEL_FACTOR = 0.5;
 
 function lerpAngle(from: number, to: number, t: number): number {
   let diff = to - from;
@@ -38,6 +43,9 @@ interface MotorState {
   yaw: number;
   visualYaw: number;
   grounded: boolean;
+  wasGrounded: boolean;
+  landTimer: number;
+  slopeMultiplier: number;
 }
 
 export class PlayerController {
@@ -94,6 +102,9 @@ export class PlayerController {
       yaw: 0,
       visualYaw: 0,
       grounded: true,
+      wasGrounded: true,
+      landTimer: 0,
+      slopeMultiplier: 1,
     };
 
     this.meshX = spawnX;
@@ -122,12 +133,53 @@ export class PlayerController {
     return this.motor.yaw;
   }
 
+  isMoving(): boolean {
+    return Math.abs(this.motor.vx) > 0.1 || Math.abs(this.motor.vz) > 0.1;
+  }
+
+  isSprinting(): boolean {
+    return this.isMoving() && Math.sqrt(this.motor.vx * this.motor.vx + this.motor.vz * this.motor.vz) > WALK_SPEED * 1.1;
+  }
+
   update(input: InputState, dt: number): void {
+    this.computeSlope();
     this.applyInput(input, dt);
     this.applyPhysics(dt);
     this.groundSnap();
+    this.detectLanding(dt);
     this.syncMeshToMotor(dt);
     this.maybeSendNetwork(input, dt);
+  }
+
+  private computeSlope(): void {
+    if (!this.motor.grounded) { this.motor.slopeMultiplier = 1; return; }
+    const speed = Math.sqrt(this.motor.vx * this.motor.vx + this.motor.vz * this.motor.vz);
+    if (speed < 0.1) { this.motor.slopeMultiplier = 1; return; }
+    const dirX = this.motor.vx / speed;
+    const dirZ = this.motor.vz / speed;
+    const hHere = this.getHeightAt(this.motor.x, this.motor.z);
+    const hAhead = this.getHeightAt(this.motor.x + dirX * SLOPE_SAMPLE_DIST, this.motor.z + dirZ * SLOPE_SAMPLE_DIST);
+    const slope = (hAhead - hHere) / SLOPE_SAMPLE_DIST;
+    if (slope > 0.05) {
+      this.motor.slopeMultiplier = Math.max(0.3, 1 - slope * UPHILL_PENALTY);
+    } else if (slope < -0.05) {
+      this.motor.slopeMultiplier = Math.min(1.3, 1 - slope * DOWNHILL_BOOST);
+    } else {
+      this.motor.slopeMultiplier = 1;
+    }
+  }
+
+  private detectLanding(dt: number): void {
+    if (this.motor.grounded && !this.motor.wasGrounded) {
+      this.motor.landTimer = LAND_DECEL_DURATION;
+    }
+    this.motor.wasGrounded = this.motor.grounded;
+    if (this.motor.landTimer > 0) {
+      this.motor.landTimer -= dt;
+      const factor = LAND_DECEL_FACTOR + (1 - LAND_DECEL_FACTOR) * (1 - this.motor.landTimer / LAND_DECEL_DURATION);
+      this.motor.vx *= factor;
+      this.motor.vz *= factor;
+    }
   }
 
   private applyInput(input: InputState, dt: number): void {
@@ -147,7 +199,8 @@ export class PlayerController {
     const worldX = moveX * cosCam + moveZ * sinCam;
     const worldZ = -moveX * sinCam + moveZ * cosCam;
 
-    const maxSpeed = input.sprint ? WALK_SPEED * SPRINT_MULTIPLIER : WALK_SPEED;
+    const baseSpeed = input.sprint ? WALK_SPEED * SPRINT_MULTIPLIER : WALK_SPEED;
+    const maxSpeed = baseSpeed * this.motor.slopeMultiplier;
     const desiredVx = worldX * maxSpeed;
     const desiredVz = worldZ * maxSpeed;
 

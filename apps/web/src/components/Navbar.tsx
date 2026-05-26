@@ -10,7 +10,6 @@ const NAV_LINKS = [
   { href: "/technology", label: "Technology" },
   { href: "/account", label: "Account" },
   { href: "/play", label: "Play" },
-  { href: "/dev", label: "Dev" },
 ];
 
 export function Navbar() {

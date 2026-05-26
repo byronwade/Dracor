@@ -7,6 +7,7 @@ export interface InputState {
 
 export interface MouseState {
   rightDown: boolean;
+  middleDown: boolean;
   deltaX: number;
   deltaY: number;
   scrollDelta: number;
@@ -17,6 +18,7 @@ export class InputController {
   private jumpPressed = false;
 
   private _rightDown = false;
+  private _middleClicked = false;
   private _deltaX = 0;
   private _deltaY = 0;
   private _scrollDelta = 0;
@@ -48,6 +50,7 @@ export class InputController {
 
     this.handleMouseDown = (e: MouseEvent) => {
       if (e.button === 2) this._rightDown = true;
+      if (e.button === 1) { this._middleClicked = true; e.preventDefault(); }
     };
 
     this.handleMouseUp = (e: MouseEvent) => {
@@ -99,6 +102,7 @@ export class InputController {
   consumeMouse(): MouseState {
     const state: MouseState = {
       rightDown: this._rightDown,
+      middleDown: this._middleClicked,
       deltaX: this._deltaX,
       deltaY: this._deltaY,
       scrollDelta: this._scrollDelta,
@@ -106,6 +110,7 @@ export class InputController {
     this._deltaX = 0;
     this._deltaY = 0;
     this._scrollDelta = 0;
+    this._middleClicked = false;
     return state;
   }
 

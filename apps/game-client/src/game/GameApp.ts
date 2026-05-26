@@ -180,6 +180,11 @@ export class GameApp {
     const mouse = this.inputController.consumeMouse();
 
     if (!menuOpen) {
+      this.cameraController.setPlayerState(
+        this.playerController.isMoving(),
+        this.playerController.getYaw(),
+        this.playerController.isSprinting()
+      );
       this.cameraController.update(mouse, dt);
       this.playerController.setCameraYaw(this.cameraController.getCameraYaw());
       const input = this.inputController.getInput();

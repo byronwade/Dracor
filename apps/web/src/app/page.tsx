@@ -1,5 +1,10 @@
 import Link from "next/link";
-import Image from "next/image";
+import dynamic from "next/dynamic";
+
+const SceneCanvas = dynamic(
+  () => import("@/components/SceneCanvas").then((m) => m.SceneCanvas),
+  { ssr: false }
+);
 
 const PILLARS = [
   {
@@ -43,17 +48,11 @@ const PILLARS = [
 export default function HomePage() {
   return (
     <div className="flex flex-col">
-      {/* Hero */}
+      {/* Hero — live game render */}
       <section className="relative flex h-screen flex-col items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
-          <Image
-            src="/renders/hero-shrine.svg"
-            alt=""
-            fill
-            priority
-            className="object-cover opacity-30 animate-hero-drift"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-surface/40 via-transparent to-surface" />
+          <SceneCanvas preset="hero" className="opacity-40" />
+          <div className="absolute inset-0 bg-gradient-to-b from-surface/50 via-transparent to-surface" />
         </div>
 
         <div className="relative z-10 text-center px-8">
@@ -89,15 +88,10 @@ export default function HomePage() {
         </p>
       </section>
 
-      {/* Visual Break 1 */}
+      {/* Visual Break 1 — live road view */}
       <section className="relative h-[60vh] overflow-hidden border-y border-line-subtle">
-        <Image
-          src="/renders/road-dawn.svg"
-          alt="The road through Ironvale Outskirts"
-          fill
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-surface/60 via-transparent to-surface/60" />
+        <SceneCanvas preset="road" />
+        <div className="absolute inset-0 bg-gradient-to-b from-surface/40 via-transparent to-surface/40" />
       </section>
 
       {/* Pillars */}
@@ -126,15 +120,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Visual Break 2 */}
+      {/* Visual Break 2 — live shrine close-up */}
       <section className="relative h-[60vh] overflow-hidden border-y border-line-subtle">
-        <Image
-          src="/renders/shrine-closeup.svg"
-          alt="The shrine, shrouded in fog"
-          fill
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-surface/60 via-transparent to-surface/60" />
+        <SceneCanvas preset="shrine" />
+        <div className="absolute inset-0 bg-gradient-to-b from-surface/40 via-transparent to-surface/40" />
       </section>
 
       {/* Final CTA */}
@@ -154,7 +143,7 @@ export default function HomePage() {
       <footer className="border-t border-line-subtle">
         <div className="mx-auto max-w-[1200px] flex flex-col sm:flex-row items-center sm:items-end justify-between gap-8 px-8 py-16 lg:px-12">
           <div>
-            <p className="text-xs font-bold tracking-label text-content-dim mb-2">
+            <p className="font-display text-xs font-bold tracking-label text-content-dim mb-2">
               DRACOR
             </p>
             <p className="text-xs text-content-faint">
@@ -162,19 +151,18 @@ export default function HomePage() {
             </p>
           </div>
           <div className="flex gap-8">
-            {["World", "Technology", "Developer", "Roadmap"].map((label) => (
+            {[
+              { label: "World", href: "/world" },
+              { label: "Technology", href: "/technology" },
+              { label: "Developer", href: "/dev" },
+              { label: "Roadmap", href: "/dev/roadmap" },
+            ].map((link) => (
               <Link
-                key={label}
-                href={
-                  label === "Developer"
-                    ? "/dev"
-                    : label === "Roadmap"
-                      ? "/dev/roadmap"
-                      : `/${label.toLowerCase()}`
-                }
+                key={link.label}
+                href={link.href}
                 className="text-xs text-content-dim transition-colors hover:text-content-secondary tracking-wide"
               >
-                {label}
+                {link.label}
               </Link>
             ))}
           </div>
