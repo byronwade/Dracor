@@ -89,7 +89,7 @@ export class GameApp {
     console.log(`[Game] Quality tier: ${tier} (WebGPU: ${caps.webgpu}, WebGL2: ${caps.webgl2})`);
 
     const builder = getSceneBuilder('ironvale_outskirts');
-    this.sceneResult = builder(this.engine, this.quality);
+    this.sceneResult = await builder(this.engine, this.quality);
     this.scene = this.sceneResult.scene;
     this.dayNight = this.sceneResult.dayNight;
 
@@ -210,6 +210,7 @@ export class GameApp {
     }
 
     if (this.dayNight) this.dayNight.update(dt);
+    this.sceneResult.updateWind(dt);
 
     this.multiplayerClient.interpolateRemotePlayers();
 

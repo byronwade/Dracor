@@ -7,7 +7,7 @@ import '@babylonjs/core/Meshes/Builders/boxBuilder';
 
 import type { QualitySettings, ZoneManifest, RockGroup } from '../scenes/IronvaleOutskirtsScene';
 import { createTerrainFromManifest, type TerrainResult } from './createTerrainFromManifest';
-import { createFoliageFromManifest } from './createFoliageFromManifest';
+import { createFoliageFromManifest, type ExclusionData } from './createFoliageFromManifest';
 import { createRoadFromManifest } from './createRoadFromManifest';
 import { createShrineFromManifest } from './createShrineFromManifest';
 import { createLandmarksFromManifest } from './createLandmarksFromManifest';
@@ -20,33 +20,64 @@ export type HeightSampler = (x: number, z: number) => number;
 export interface ZoneLoadResult {
   terrain: TerrainResult;
   sky: SkyResult;
+  updateWind: (dt: number) => void;
 }
 
-/**
- * Load a complete zone from its manifest data, creating all world geometry.
- * The terrain height sampler is passed to every builder so objects sit on the ground.
- */
-export function loadZoneFromManifest(
+function buildExclusionData(manifest: ZoneManifest): ExclusionData {
+  const roadSegments: ExclusionData['roadSegments'] = [];
+  for (const road of manifest.roads) {
+    for (let i = 0; i < road.points.length - 1; i++) {
+      const a = road.points[i];
+      const b = road.points[i + 1];
+      roadSegments.push({
+        ax: a.x, az: a.z,
+        bx: b.x, bz: b.z,
+        width: road.width,
+      });
+    }
+  }
+
+  const waterBodies: ExclusionData['waterBodies'] = manifest.water.map((w) => ({
+    x: w.position.x,
+    z: w.position.z,
+    radiusX: w.size.width * 0.5,
+    radiusZ: w.size.depth * 0.5,
+  }));
+
+  const landmarks: ExclusionData['landmarks'] = manifest.landmarks.map((lm) => ({
+    x: lm.position.x,
+    z: lm.position.z,
+    radius: (lm.scale ?? 1) * 5,
+  }));
+
+  const spawns: ExclusionData['spawns'] = manifest.spawns.map((sp) => ({
+    x: sp.position.x,
+    z: sp.position.z,
+    radius: sp.radius ?? 5,
+  }));
+
+  return { roadSegments, waterBodies, landmarks, spawns };
+}
+
+export async function loadZoneFromManifest(
   manifest: ZoneManifest,
   scene: Scene,
   quality: QualitySettings
-): ZoneLoadResult {
-  // Create terrain first — we need getHeightAt for all other builders
+): Promise<ZoneLoadResult> {
   const terrain = createTerrainFromManifest(manifest.terrain, scene, quality);
   const h = terrain.getHeightAt;
 
-  // Create foliage (trees, bushes, grass)
-  createFoliageFromManifest(manifest.foliage, scene, quality, h);
+  const exclusions = buildExclusionData(manifest);
+  const foliageResult = await createFoliageFromManifest(
+    manifest.foliage, scene, quality, h, exclusions
+  );
 
-  // Create rocks
   createRocksFromManifest(manifest.rocks, scene, quality, h);
 
-  // Create roads
   for (const road of manifest.roads) {
     createRoadFromManifest(road, scene, h);
   }
 
-  // Create landmarks (shrine, gate, bridge)
   for (const landmark of manifest.landmarks) {
     if (landmark.type === 'shrine') {
       createShrineFromManifest(landmark, scene, h);
@@ -55,16 +86,18 @@ export function loadZoneFromManifest(
     }
   }
 
-  // Create water bodies
   for (const water of manifest.water) {
     createWater(water, scene, h);
   }
 
   const sky = createSkyAndAtmosphere(scene, quality);
-
   createDistantMountains(scene);
 
-  return { terrain, sky };
+  return {
+    terrain,
+    sky,
+    updateWind: foliageResult.updateWind,
+  };
 }
 
 function createRocksFromManifest(

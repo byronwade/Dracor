@@ -67,7 +67,8 @@ export interface TerrainDefinition {
 
 export interface FoliageGroup {
   id: string;
-  type: 'tree_pine' | 'tree_dead' | 'bush' | 'grass_tall' | 'grass_short' | 'fern' | 'flower';
+  type: 'tree_pine' | 'tree_dead' | 'tree_broadleaf' | 'bush' | 'grass_tall' | 'grass_short' | 'fern' | 'flower';
+  modelId: string;
   count: number;
   area: { centerX: number; centerZ: number; radius: number };
   minScale: number;
@@ -75,6 +76,14 @@ export interface FoliageGroup {
   density: number;
   lodDistance: number;
   castShadow: boolean;
+  maxSlope: number;
+  alignToSlope: boolean;
+  exclusionRadii: {
+    road: number;
+    water: number;
+    landmark: number;
+    spawn: number;
+  };
 }
 
 export interface RockGroup {
@@ -281,6 +290,7 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
     {
       id: 'foliage_pine_main',
       type: 'tree_pine',
+      modelId: 'pine_tree_01',
       count: 200,
       area: { centerX: 0, centerZ: 0, radius: 220 },
       minScale: 0.8,
@@ -288,10 +298,14 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       density: 0.6,
       lodDistance: 120,
       castShadow: true,
+      maxSlope: 30,
+      alignToSlope: true,
+      exclusionRadii: { road: 8, water: 6, landmark: 12, spawn: 10 },
     },
     {
       id: 'foliage_dead_trees',
       type: 'tree_dead',
+      modelId: 'dead_tree_01',
       count: 30,
       area: { centerX: -80, centerZ: 60, radius: 150 },
       minScale: 0.7,
@@ -299,10 +313,29 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       density: 0.15,
       lodDistance: 100,
       castShadow: true,
+      maxSlope: 35,
+      alignToSlope: true,
+      exclusionRadii: { road: 6, water: 5, landmark: 10, spawn: 8 },
+    },
+    {
+      id: 'foliage_broadleaf',
+      type: 'tree_broadleaf',
+      modelId: 'broadleaf_tree_01',
+      count: 60,
+      area: { centerX: 50, centerZ: -40, radius: 180 },
+      minScale: 0.9,
+      maxScale: 1.6,
+      density: 0.25,
+      lodDistance: 100,
+      castShadow: true,
+      maxSlope: 25,
+      alignToSlope: true,
+      exclusionRadii: { road: 10, water: 8, landmark: 15, spawn: 10 },
     },
     {
       id: 'foliage_tall_grass',
       type: 'grass_tall',
+      modelId: 'grass_tall_patch',
       count: 500,
       area: { centerX: 0, centerZ: 0, radius: 50 },
       minScale: 0.6,
@@ -310,10 +343,14 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       density: 0.9,
       lodDistance: 40,
       castShadow: false,
+      maxSlope: 40,
+      alignToSlope: false,
+      exclusionRadii: { road: 3, water: 2, landmark: 5, spawn: 4 },
     },
     {
       id: 'foliage_bushes_edge',
       type: 'bush',
+      modelId: 'bush_01',
       count: 80,
       area: { centerX: 40, centerZ: -30, radius: 180 },
       minScale: 0.5,
@@ -321,6 +358,9 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       density: 0.35,
       lodDistance: 60,
       castShadow: true,
+      maxSlope: 35,
+      alignToSlope: false,
+      exclusionRadii: { road: 5, water: 4, landmark: 8, spawn: 6 },
     },
   ],
   rocks: [
@@ -431,15 +471,16 @@ export interface IronvaleSceneResult {
   scene: Scene;
   getHeightAt: (x: number, z: number) => number;
   dayNight: DayNightCycle;
+  updateWind: (dt: number) => void;
 }
 
 /**
  * Build the complete Ironvale Outskirts scene.
  */
-export function buildIronvaleOutskirtsScene(
+export async function buildIronvaleOutskirtsScene(
   engine: Engine,
   quality: QualitySettings
-): IronvaleSceneResult {
+): Promise<IronvaleSceneResult> {
   const scene = new Scene(engine);
   scene.clearColor = new Color4(0.02, 0.015, 0.03, 1.0);
   scene.fogMode = Scene.FOGMODE_EXP2;
@@ -449,7 +490,7 @@ export function buildIronvaleOutskirtsScene(
 
   const dayNight = new DayNightCycle(scene, quality, 0.38);
 
-  const zoneResult = loadZoneFromManifest(IRONVALE_OUTSKIRTS, scene, quality);
+  const zoneResult = await loadZoneFromManifest(IRONVALE_OUTSKIRTS, scene, quality);
 
   dayNight.bindSky(zoneResult.sky.skyMat, zoneResult.sky.horizonMat);
 
@@ -463,6 +504,7 @@ export function buildIronvaleOutskirtsScene(
     scene,
     getHeightAt: zoneResult.terrain.getHeightAt,
     dayNight,
+    updateWind: zoneResult.updateWind,
   };
 }
 

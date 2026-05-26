@@ -4,7 +4,6 @@ import { Scene } from '@babylonjs/core/scene';
 import {
   buildIronvaleOutskirtsScene,
   type QualitySettings,
-  type IronvaleSceneResult,
 } from './IronvaleOutskirtsScene';
 import type { DayNightCycle } from '../systems/DayNightCycle';
 
@@ -14,14 +13,20 @@ export interface SceneBuildResult {
   scene: Scene;
   getHeightAt: (x: number, z: number) => number;
   dayNight: DayNightCycle | null;
+  updateWind: (dt: number) => void;
 }
 
-type SceneBuilder = (engine: Engine, quality: QualitySettings) => SceneBuildResult;
+type SceneBuilder = (engine: Engine, quality: QualitySettings) => Promise<SceneBuildResult>;
 
 const SCENE_BUILDERS: Record<SceneName, SceneBuilder> = {
-  ironvale_outskirts: (engine, quality) => {
-    const result: IronvaleSceneResult = buildIronvaleOutskirtsScene(engine, quality);
-    return { scene: result.scene, getHeightAt: result.getHeightAt, dayNight: result.dayNight };
+  ironvale_outskirts: async (engine, quality) => {
+    const result = await buildIronvaleOutskirtsScene(engine, quality);
+    return {
+      scene: result.scene,
+      getHeightAt: result.getHeightAt,
+      dayNight: result.dayNight,
+      updateWind: result.updateWind,
+    };
   },
 };
 
