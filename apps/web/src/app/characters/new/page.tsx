@@ -327,6 +327,43 @@ function RaceSelectionStep({
   );
 }
 
+const MEMORY_DATA: Record<string, {
+  icon: string; color: string; bgActive: string; ring: string; text: string;
+  lore: string; synergy: string;
+  statBoosts: { label: string; value: string }[];
+}> = {
+  ember: {
+    icon: "🔥", color: "#f97316", bgActive: "bg-orange-500/8", ring: "ring-orange-500/40", text: "text-orange-400",
+    lore: "The Ember burns brightest in those who refuse to be extinguished. It is rage made purpose, fury given form. In the darkest moments, when all seems lost, the Ember ignites — and everything burns.",
+    synergy: "Best with: Blade (sustained DPS) or Staff (fire amplification). Strong on Dracor, Grukhar, Bloodfane.",
+    statBoosts: [
+      { label: "Fire Damage", value: "+5%" },
+      { label: "Crit Damage", value: "+2%" },
+      { label: "Burn Duration", value: "+1s" },
+    ],
+  },
+  stone: {
+    icon: "🪨", color: "#d97706", bgActive: "bg-amber-500/8", ring: "ring-amber-600/40", text: "text-amber-400",
+    lore: "The Stone remembers what mountains remember: that all things pass, that patience outlasts fury, that the world breaks itself against those who will not move. It is the quiet power of endurance.",
+    synergy: "Best with: Blade (frontline tank) or any weapon. Essential for Ironborn, Stoneguard, Ashwalker.",
+    statBoosts: [
+      { label: "Defense", value: "+5%" },
+      { label: "Max Health", value: "+3%" },
+      { label: "Stagger Resist", value: "+10%" },
+    ],
+  },
+  storm: {
+    icon: "⚡", color: "#0ea5e9", bgActive: "bg-sky-500/8", ring: "ring-sky-500/40", text: "text-sky-400",
+    lore: "The Storm does not announce itself — it simply arrives. Those who carry its memory move like lightning: there and gone, leaving only the thunder of their passing. Speed is not haste. It is precision at velocity.",
+    synergy: "Best with: Bow (rapid shots) or Blade (fast combos). Deadly on Sylvhari, Skrix, Bloodfane.",
+    statBoosts: [
+      { label: "Attack Speed", value: "+5%" },
+      { label: "Move Speed", value: "+3%" },
+      { label: "Dodge Chance", value: "+2%" },
+    ],
+  },
+};
+
 function MemorySelectionStep({
   selectedMemory,
   selectedRace,
@@ -336,27 +373,23 @@ function MemorySelectionStep({
   selectedRace: RaceId;
   onSelect: (id: DragonMemory) => void;
 }) {
-  const memoryLore: Record<string, string> = {
-    ember: "The Ember burns brightest in those who refuse to be extinguished. It is rage made purpose, fury given form. In the darkest moments, when all seems lost, the Ember ignites — and everything burns.",
-    stone: "The Stone remembers what mountains remember: that all things pass, that patience outlasts fury, that the world breaks itself against those who will not move. It is the quiet power of endurance.",
-    storm: "The Storm does not announce itself — it simply arrives. Those who carry its memory move like lightning: there and gone, leaving only the thunder of their passing. Speed is not haste. It is precision at velocity.",
-  };
+  const selected = selectedMemory ? MEMORY_DATA[selectedMemory] : null;
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
       <div className="relative flex-1 min-h-[300px]">
         <CharacterViewer raceId={selectedRace} memory={selectedMemory || undefined} autoRotate />
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-transparent p-8 pt-20">
-          {selectedMemory && (
+          {selected && (
             <p className="mx-auto max-w-md text-center text-[13px] italic leading-relaxed text-stone-400 animate-fade-in">
-              &ldquo;{memoryLore[selectedMemory]}&rdquo;
+              &ldquo;{selected.lore}&rdquo;
             </p>
           )}
         </div>
       </div>
 
-      <div className="wizard-panel flex flex-col gap-4 border-l p-6 lg:w-[400px]">
-        <div className="mb-2">
+      <div className="wizard-panel flex flex-col gap-4 overflow-y-auto border-l border-stone-800/30 p-4 lg:w-[400px]">
+        <div>
           <h2 className="font-display text-xl tracking-wide text-stone-100">Dragon Memory</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
             A fragment of ancient power burns within you. Which memory stirs in your blood?
@@ -365,50 +398,84 @@ function MemorySelectionStep({
 
         {DRAGON_MEMORIES.map((mem) => {
           const isSelected = selectedMemory === mem.id;
-          const colorSchemes: Record<string, { ring: string; glow: string; text: string; bg: string }> = {
-            ember: { ring: "ring-orange-500/50", glow: "shadow-orange-500/20", text: "text-orange-400", bg: "bg-orange-500/8" },
-            stone: { ring: "ring-amber-600/50", glow: "shadow-amber-600/20", text: "text-amber-400", bg: "bg-amber-500/8" },
-            storm: { ring: "ring-sky-500/50", glow: "shadow-sky-500/20", text: "text-sky-400", bg: "bg-sky-500/8" },
-          };
-          const cs = colorSchemes[mem.id] || colorSchemes.ember;
+          const md = MEMORY_DATA[mem.id];
+          if (!md) return null;
 
           return (
             <button
               key={mem.id}
               onClick={() => onSelect(mem.id as DragonMemory)}
-              className={`relative rounded-xl border p-5 text-left transition-all duration-300 ${
+              className={`relative rounded-lg border p-4 text-left transition-all duration-200 ${
                 isSelected
-                  ? `border-transparent ring-2 ${cs.ring} ${cs.bg} shadow-xl ${cs.glow}`
-                  : "border-stone-800/50 bg-stone-900/20 hover:border-stone-700/60 hover:bg-stone-800/20"
+                  ? `border-transparent ring-2 ${md.ring} ${md.bgActive}`
+                  : "border-white/[0.04] bg-white/[0.015] hover:bg-white/[0.03]"
               }`}
             >
-              <div className="flex items-center gap-4">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-full transition-all ${
-                  isSelected ? cs.bg + " ring-1 " + cs.ring : "bg-stone-800/60"
+              <div className="flex items-start gap-3">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${
+                  isSelected ? md.bgActive + " ring-1 " + md.ring : "bg-stone-800/60"
                 }`}>
-                  <span className="text-xl">
-                    {mem.id === "ember" ? "🔥" : mem.id === "stone" ? "🪨" : "⚡"}
-                  </span>
+                  <span className="text-2xl">{md.icon}</span>
                 </div>
-                <div className="flex-1">
-                  <h3 className={`font-display text-base tracking-wide ${isSelected ? cs.text : "text-stone-200"}`}>
-                    {mem.name}
-                  </h3>
-                  <p className="text-[11px] text-stone-600">Element: {mem.element}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`font-display text-base tracking-wide ${isSelected ? md.text : "text-stone-200"}`}>
+                      {mem.name}
+                    </h3>
+                    <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider ${
+                      isSelected ? md.bgActive + " " + md.text : "bg-stone-800/60 text-stone-500"
+                    }`}>
+                      {mem.element}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-stone-500">{mem.description}</p>
                 </div>
               </div>
-              <p className="mt-3 text-[12px] leading-relaxed text-stone-500">{mem.description}</p>
-              <div className="mt-3 flex items-center gap-2 rounded-md bg-stone-800/30 px-3 py-2">
-                <div className={`h-1 w-1 rounded-full ${isSelected ? "bg-current " + cs.text : "bg-stone-600"}`} />
-                <p className="text-[11px] font-medium text-stone-400">{mem.passiveBonus}</p>
+
+              {/* Stat boosts */}
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
+                {md.statBoosts.map((b) => (
+                  <div key={b.label} className="rounded bg-white/[0.03] px-2 py-1.5 text-center">
+                    <p className="text-[8px] font-bold uppercase tracking-wider text-stone-600">{b.label}</p>
+                    <p className={`text-[12px] font-black tabular-nums ${isSelected ? md.text : "text-stone-300"}`}>{b.value}</p>
+                  </div>
+                ))}
               </div>
             </button>
           );
         })}
+
+        {/* Synergy info */}
+        {selected && (
+          <div className="rounded-lg border border-white/[0.04] bg-white/[0.01] p-3 animate-fade-in">
+            <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600 mb-1">Synergy</h4>
+            <p className="text-[11px] leading-relaxed text-stone-400">{selected.synergy}</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+const WEAPON_EXTRA: Record<string, {
+  playstyle: string; bestWith: string; scaling: string;
+}> = {
+  blade: {
+    playstyle: "Melee brawler. Balanced damage and speed. Parry mechanic rewards timing. Best all-around choice.",
+    bestWith: "Ember (sustained burn) or Stone (frontline durability)",
+    scaling: "Strength + Agility",
+  },
+  bow: {
+    playstyle: "Ranged kiter. High damage ceiling but punishes missed shots. Positioning is everything.",
+    bestWith: "Storm (rapid fire) or Ember (burning arrows)",
+    scaling: "Agility + Focus",
+  },
+  staff: {
+    playstyle: "Channeled caster. Slow but devastating burst. Staff orb amplifies Dragon Memory element.",
+    bestWith: "Ember (fire storms) or Storm (chain lightning)",
+    scaling: "Spirit + Focus",
+  },
+};
 
 function WeaponSelectionStep({
   selectedWeapon,
@@ -430,12 +497,7 @@ function WeaponSelectionStep({
   return (
     <div className="flex h-full flex-col lg:flex-row">
       <div className="relative flex-1 min-h-[300px]">
-        <CharacterViewer
-          raceId={selectedRace}
-          memory={selectedMemory || undefined}
-          weapon={selectedWeapon || undefined}
-          autoRotate
-        />
+        <CharacterViewer raceId={selectedRace} memory={selectedMemory || undefined} weapon={selectedWeapon || undefined} autoRotate />
         {selectedWeapon && (
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-transparent p-8 pt-20">
             <p className="mx-auto max-w-md text-center text-[13px] italic leading-relaxed text-stone-400 animate-fade-in">
@@ -445,8 +507,8 @@ function WeaponSelectionStep({
         )}
       </div>
 
-      <div className="wizard-panel flex flex-col gap-4 border-l p-6 lg:w-[400px]">
-        <div className="mb-2">
+      <div className="wizard-panel flex flex-col gap-4 overflow-y-auto border-l border-stone-800/30 p-4 lg:w-[400px]">
+        <div>
           <h2 className="font-display text-xl tracking-wide text-stone-100">Your Weapon</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
             You awaken with one weapon in hand. It will define how you meet the world.
@@ -456,26 +518,27 @@ function WeaponSelectionStep({
         {STARTER_WEAPONS.map((w) => {
           const weaponId = w.metadata?.weaponClass as WeaponType;
           const isSelected = selectedWeapon === weaponId;
+          const extra = WEAPON_EXTRA[weaponId];
 
           return (
             <button
               key={w.id}
               onClick={() => onSelect(weaponId)}
-              className={`relative rounded-xl border p-5 text-left transition-all duration-300 ${
+              className={`relative rounded-lg border p-4 text-left transition-all duration-200 ${
                 isSelected
-                  ? "border-transparent ring-2 ring-ember-500/40 bg-ember-500/5 shadow-xl shadow-ember-500/10"
-                  : "border-stone-800/50 bg-stone-900/20 hover:border-stone-700/60 hover:bg-stone-800/20"
+                  ? "border-transparent ring-2 ring-ember-500/40 bg-ember-500/5"
+                  : "border-white/[0.04] bg-white/[0.015] hover:bg-white/[0.03]"
               }`}
             >
-              <div className="flex items-center gap-4">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-lg transition-all ${
+              <div className="flex items-start gap-3">
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${
                   isSelected ? "bg-ember-500/15 ring-1 ring-ember-500/30" : "bg-stone-800/60"
                 }`}>
                   <span className="text-2xl">
                     {weaponId === "blade" ? "⚔️" : weaponId === "bow" ? "🏹" : "🪄"}
                   </span>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <h3 className={`font-display text-base tracking-wide ${isSelected ? "text-ember-400" : "text-stone-200"}`}>
                     {w.name}
                   </h3>
@@ -483,24 +546,37 @@ function WeaponSelectionStep({
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-stone-800/40 p-2.5 text-center">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-stone-600">Damage</p>
-                  <p className="mt-0.5 text-sm font-black tabular-nums text-stone-200">
-                    {w.damageMin}–{w.damageMax}
+              {/* Stats row */}
+              <div className="mt-3 grid grid-cols-4 gap-1.5">
+                <div className="rounded bg-white/[0.03] px-2 py-1.5 text-center">
+                  <p className="text-[8px] font-bold uppercase tracking-wider text-stone-600">Damage</p>
+                  <p className="text-[13px] font-black tabular-nums text-stone-200">{w.damageMin}–{w.damageMax}</p>
+                </div>
+                <div className="rounded bg-white/[0.03] px-2 py-1.5 text-center">
+                  <p className="text-[8px] font-bold uppercase tracking-wider text-stone-600">Speed</p>
+                  <p className="text-[13px] font-black tabular-nums text-stone-200">{(w.metadata?.attackSpeed as number)?.toFixed(1)}x</p>
+                </div>
+                <div className="rounded bg-white/[0.03] px-2 py-1.5 text-center">
+                  <p className="text-[8px] font-bold uppercase tracking-wider text-stone-600">DPS</p>
+                  <p className="text-[13px] font-black tabular-nums text-ember-400">
+                    {(((w.damageMin || 0) + (w.damageMax || 0)) / 2 * (w.metadata?.attackSpeed as number || 1)).toFixed(1)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-stone-800/40 p-2.5 text-center">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-stone-600">Speed</p>
-                  <p className="mt-0.5 text-sm font-black tabular-nums text-stone-200">
-                    {(w.metadata?.attackSpeed as number)?.toFixed(1)}x
-                  </p>
-                </div>
-                <div className="rounded-lg bg-stone-800/40 p-2.5 text-center">
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-stone-600">Class</p>
-                  <p className="mt-0.5 text-sm font-black capitalize text-stone-200">{weaponId}</p>
+                <div className="rounded bg-white/[0.03] px-2 py-1.5 text-center">
+                  <p className="text-[8px] font-bold uppercase tracking-wider text-stone-600">Scales</p>
+                  <p className="text-[10px] font-bold text-stone-300">{extra?.scaling.split(" + ").map(s => s.slice(0,3)).join("+")}</p>
                 </div>
               </div>
+
+              {/* Playstyle on selected */}
+              {isSelected && extra && (
+                <div className="mt-3 space-y-2 animate-fade-in">
+                  <p className="text-[11px] leading-relaxed text-stone-400">{extra.playstyle}</p>
+                  <div className="rounded bg-white/[0.02] px-3 py-1.5">
+                    <p className="text-[10px] text-stone-500"><span className="text-stone-600 font-bold">Pairs with:</span> {extra.bestWith}</p>
+                  </div>
+                </div>
+              )}
             </button>
           );
         })}
@@ -524,30 +600,13 @@ function AppearanceStep({
   if (!race) return null;
   const opts = race.appearance;
 
-  function OptionGrid({ label, options, selected, field }: { label: string; options: string[]; selected: string; field: string }) {
-    return (
-      <div>
-        <label className="mb-2 block font-display text-[10px] font-bold uppercase tracking-[0.2em] text-stone-500">
-          {label}
-        </label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => onUpdate(field, opt)}
-              className={`rounded-lg border px-2.5 py-2 text-[11px] font-medium transition-all duration-200 ${
-                selected === opt
-                  ? "border-ember-500/50 bg-ember-500/8 text-ember-400 shadow-sm shadow-ember-500/10"
-                  : "border-stone-800/40 bg-stone-900/20 text-stone-500 hover:border-stone-700/50 hover:text-stone-300"
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const categories = [
+    { label: "Eye Color", options: opts.eyeColors, field: "eyeColor", selected: appearance.eyeColor },
+    { label: "Skin Tone", options: opts.skinTones, field: "skinTone", selected: appearance.skinTone },
+    { label: "Markings", options: opts.markings, field: "marking", selected: appearance.marking },
+    { label: "Hair Style", options: opts.hairStyles, field: "hairStyle", selected: appearance.hairStyle },
+    { label: opts.uniqueFeature, options: opts.uniqueFeatureOptions, field: "uniqueFeature", selected: appearance.uniqueFeature },
+  ];
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
@@ -555,7 +614,7 @@ function AppearanceStep({
         <CharacterViewer raceId={selectedRace} memory={selectedMemory || undefined} appearance={appearance} autoRotate />
       </div>
 
-      <div className="wizard-panel flex flex-col gap-5 overflow-y-auto border-l p-5 lg:w-[400px]">
+      <div className="wizard-panel flex flex-col gap-4 overflow-y-auto border-l border-stone-800/30 p-4 lg:w-[400px]">
         <div>
           <h2 className="font-display text-xl tracking-wide text-stone-100">Appearance</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
@@ -563,11 +622,31 @@ function AppearanceStep({
           </p>
         </div>
 
-        <OptionGrid label="Eye Color" options={opts.eyeColors} selected={appearance.eyeColor} field="eyeColor" />
-        <OptionGrid label="Skin Tone" options={opts.skinTones} selected={appearance.skinTone} field="skinTone" />
-        <OptionGrid label="Markings" options={opts.markings} selected={appearance.marking} field="marking" />
-        <OptionGrid label="Hair Style" options={opts.hairStyles} selected={appearance.hairStyle} field="hairStyle" />
-        <OptionGrid label={opts.uniqueFeature} options={opts.uniqueFeatureOptions} selected={appearance.uniqueFeature} field="uniqueFeature" />
+        {categories.map((cat) => (
+          <div key={cat.field}>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
+                {cat.label}
+              </label>
+              <span className="text-[10px] text-stone-700">{cat.selected || "None"}</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {cat.options.map((opt) => (
+                <button
+                  key={opt}
+                  onClick={() => onUpdate(cat.field, opt)}
+                  className={`rounded border px-2.5 py-2 text-[11px] font-medium transition-all duration-150 ${
+                    cat.selected === opt
+                      ? "border-ember-500/40 bg-ember-500/8 text-ember-400"
+                      : "border-white/[0.04] bg-white/[0.015] text-stone-500 hover:bg-white/[0.03] hover:text-stone-300"
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -591,6 +670,8 @@ function NameStep({
   const race = getRaceById(selectedRace);
   const memoryData = DRAGON_MEMORIES.find((m) => m.id === selectedMemory);
   const weaponData = STARTER_WEAPONS.find((w) => w.metadata?.weaponClass === selectedWeapon);
+  const roleInfo = race ? ROLE_COLORS[race.role] : null;
+  const memInfo = selectedMemory ? MEMORY_DATA[selectedMemory] : null;
 
   return (
     <div className="flex h-full flex-col lg:flex-row">
@@ -616,12 +697,12 @@ function NameStep({
         )}
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950 via-stone-950/50 to-transparent p-8 pt-20">
           <p className="mx-auto max-w-lg text-center text-[13px] italic leading-relaxed text-stone-500">
-            &ldquo;You awaken on the Old Road with nothing but fragmented memories and a single weapon. The dragon blood stirs within you — not as a curse, but as a question. What will you become?&rdquo;
+            &ldquo;You awaken on the Old Road with nothing but fragmented memories and a single weapon. What will you become?&rdquo;
           </p>
         </div>
       </div>
 
-      <div className="wizard-panel flex flex-col gap-5 border-l p-6 lg:w-[400px]">
+      <div className="wizard-panel flex flex-col gap-4 overflow-y-auto border-l border-stone-800/30 p-4 lg:w-[400px]">
         <div>
           <h2 className="font-display text-xl tracking-wide text-stone-100">Your Name</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-stone-500">
@@ -636,52 +717,61 @@ function NameStep({
             onChange={(e) => onNameChange(e.target.value)}
             placeholder="Speak your name..."
             maxLength={24}
-            className="w-full rounded-xl border border-stone-700/50 bg-stone-900/50 px-5 py-4 font-display text-lg tracking-wide text-stone-100 placeholder-stone-700 transition-all focus:border-ember-500/50 focus:outline-none focus:ring-2 focus:ring-ember-500/15 focus:shadow-lg focus:shadow-ember-500/5"
+            className="w-full rounded-lg border border-white/[0.06] bg-white/[0.02] px-5 py-4 font-display text-lg tracking-wide text-stone-100 placeholder-stone-700 transition-all focus:border-ember-500/40 focus:outline-none focus:ring-2 focus:ring-ember-500/10"
           />
-          <p className="mt-2 text-[10px] tabular-nums text-stone-700">
-            {name.length}/24
-          </p>
+          <p className="mt-2 text-[10px] tabular-nums text-stone-700">{name.length}/24</p>
         </div>
 
-        {/* Final Summary */}
-        <div className="rounded-xl border border-stone-800/30 bg-stone-900/20 p-5">
-          <h3 className="mb-4 font-display text-[10px] font-bold uppercase tracking-[0.25em] text-stone-500">
-            Character Sheet
-          </h3>
+        {/* Character sheet */}
+        <div className="rounded-lg border border-white/[0.04] bg-white/[0.015] p-4">
+          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">Character Sheet</h3>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-stone-500">Lineage</span>
-              <span className="font-display text-[13px] font-bold text-stone-200">{race?.name}</span>
+              <div className="flex items-center gap-2">
+                {roleInfo && (
+                  <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase ${roleInfo.bg} ${roleInfo.text}`}>
+                    {roleInfo.label}
+                  </span>
+                )}
+                <span className="text-[13px] font-bold text-stone-200">{race?.name}</span>
+              </div>
             </div>
-            <div className="h-px bg-stone-800/50" />
+            <div className="h-px bg-white/[0.04]" />
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-stone-500">Dragon Memory</span>
-              <span className="font-display text-[13px] font-bold text-stone-200">
-                {memoryData?.name} <span className="text-stone-600">({memoryData?.element})</span>
+              <span className={`text-[13px] font-bold ${memInfo?.text || "text-stone-200"}`}>
+                {memInfo?.icon} {memoryData?.name}
               </span>
             </div>
-            <div className="h-px bg-stone-800/50" />
+            <div className="h-px bg-white/[0.04]" />
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-stone-500">Weapon</span>
-              <span className="font-display text-[13px] font-bold text-stone-200">{weaponData?.name}</span>
+              <span className="text-[13px] font-bold text-stone-200">{weaponData?.name}</span>
             </div>
-            <div className="h-px bg-stone-800/50" />
+            <div className="h-px bg-white/[0.04]" />
             <div className="flex items-center justify-between">
               <span className="text-[12px] text-stone-500">Starting Zone</span>
-              <span className="font-display text-[13px] font-bold text-stone-200">Ironvale</span>
+              <span className="text-[13px] font-bold text-stone-200">Ironvale</span>
             </div>
           </div>
 
           {race && (
-            <div className="mt-5 pt-4 border-t border-stone-800/30">
-              <div className="grid grid-cols-5 gap-1.5">
-                {Object.entries(race.baseStats).map(([key, val]) => (
-                  <div key={key} className="rounded-lg bg-stone-800/30 p-2 text-center">
-                    <p className="text-[8px] font-bold uppercase tracking-wider text-stone-600">{key.slice(0, 3)}</p>
-                    <p className="text-[14px] font-black tabular-nums text-stone-200">{val}</p>
-                  </div>
-                ))}
+            <div className="mt-4 pt-3 border-t border-white/[0.04]">
+              <div className="flex items-center gap-3">
+                <div className="shrink-0 w-24">
+                  <RadarChart stats={race.baseStats as unknown as { [k: string]: number }} max={14} />
+                </div>
+                <div className="flex-1 grid grid-cols-5 gap-1">
+                  {STAT_META.map(s => (
+                    <div key={s.key} className="text-center">
+                      <div className="h-1.5 w-1.5 rounded-full mx-auto mb-1" style={{ backgroundColor: s.color }} />
+                      <p className="text-[8px] font-bold text-stone-600">{s.label}</p>
+                      <p className="text-[12px] font-black tabular-nums text-stone-200">{race.baseStats[s.key]}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
