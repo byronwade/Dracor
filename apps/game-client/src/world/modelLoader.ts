@@ -29,7 +29,24 @@ async function loadContainer(fileName: string, scene: Scene): Promise<AssetConta
 
   try {
     const container = await LoadAssetContainerAsync(url, scene);
+
+    for (const mesh of container.meshes) {
+      mesh.setEnabled(false);
+      mesh.isVisible = false;
+    }
+
     containerCache.set(fileName, container);
+
+    const meshNames = container.meshes
+      .filter((m) => m instanceof Mesh && (m as Mesh).getTotalVertices() > 0)
+      .map((m) => m.name);
+    console.log(`[Foliage] Loaded ${fileName}: ${meshNames.length} meshes`);
+    if (meshNames.length <= 20) {
+      console.log(`[Foliage]   Names: ${meshNames.join(', ')}`);
+    } else {
+      console.log(`[Foliage]   First 10: ${meshNames.slice(0, 10).join(', ')} ...`);
+    }
+
     return container;
   } catch {
     return null;
@@ -62,40 +79,54 @@ export async function loadModel(modelId: string, scene: Scene, config?: ModelLoa
     if (config?.variant) {
       const variantPattern = config.variant.toLowerCase();
       const lodSuffix = config?.lodLevel !== undefined ? `lod${config.lodLevel}` : 'lod0';
+
       meshes = meshes.filter((m) => {
         const name = m.name.toLowerCase();
-        return name.includes(variantPattern) && name.includes(lodSuffix);
+        if (!name.includes(variantPattern)) return false;
+        if (!name.includes(lodSuffix)) return false;
+        if (name.includes('sphere')) return false;
+        if (name.includes('geonodes')) return false;
+        return true;
+      });
+    } else {
+      meshes = meshes.filter((m) => {
+        const name = m.name.toLowerCase();
+        return !name.includes('sphere');
       });
     }
 
     if (meshes.length === 0) {
-      console.warn(`[Foliage] No matching meshes for ${modelId} in ${fileName}`);
+      console.warn(`[Foliage] No matching meshes for "${modelId}" (variant: ${config?.variant ?? 'none'}) in ${fileName}`);
       return null;
     }
 
-    console.log(`[Foliage] Found ${meshes.length} meshes for ${modelId}: ${meshes.map(m => m.name).join(', ')}`);
-
-    const clones = meshes.map((m) => {
-      const clone = m.clone(`${modelId}_${m.name}`, null);
-      if (!clone) return null;
-      clone.setEnabled(true);
-      clone.isVisible = true;
-      return clone;
-    }).filter((c): c is Mesh => c !== null);
-
-    if (clones.length === 0) {
-      console.warn(`[Foliage] Failed to clone meshes for ${modelId}`);
-      return null;
-    }
+    console.log(`[Foliage] Matched ${meshes.length} mesh(es) for ${modelId}: ${meshes.map(m => m.name).join(', ')}`);
 
     let sourceMesh: Mesh;
 
-    if (clones.length === 1) {
-      sourceMesh = clones[0];
+    if (meshes.length === 1) {
+      const clone = meshes[0].clone(`foliage_${modelId}`, null);
+      if (!clone) {
+        console.warn(`[Foliage] Failed to clone mesh for ${modelId}`);
+        return null;
+      }
+      sourceMesh = clone;
     } else {
+      const clones: Mesh[] = [];
+      for (const m of meshes) {
+        const clone = m.clone(`_tmp_${modelId}_${m.name}`, null);
+        if (clone) clones.push(clone);
+      }
+
+      if (clones.length === 0) {
+        console.warn(`[Foliage] Failed to clone meshes for ${modelId}`);
+        return null;
+      }
+
       const merged = Mesh.MergeMeshes(clones, true, true, undefined, false, true);
       if (!merged) {
-        console.warn(`[Foliage] Failed to merge meshes for ${modelId}`);
+        for (const c of clones) c.dispose();
+        console.warn(`[Foliage] Failed to merge ${clones.length} meshes for ${modelId}`);
         return null;
       }
       sourceMesh = merged;
@@ -107,8 +138,8 @@ export async function loadModel(modelId: string, scene: Scene, config?: ModelLoa
 
     modelCache.set(modelId, sourceMesh);
     return sourceMesh;
-  } catch {
-    console.warn(`[Foliage] Model ${fileName} not found, using procedural fallback`);
+  } catch (e) {
+    console.warn(`[Foliage] Error loading ${fileName}:`, e);
     return null;
   }
 }
