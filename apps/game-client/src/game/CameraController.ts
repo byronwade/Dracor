@@ -137,12 +137,6 @@ export class CameraController {
       this.resetBehindPlayer();
     }
 
-    if (this.playerMoving && this.timeSinceOrbit > AUTO_FOLLOW_DELAY) {
-      const behindAlpha = this.playerYaw + Math.PI;
-      const followT = Math.min(1, AUTO_FOLLOW_SPEED * dt);
-      this.targetAlpha = lerpAngle(this.targetAlpha, behindAlpha, followT);
-    }
-
     this.targetFov = this.isSprinting ? SPRINT_FOV : DEFAULT_FOV;
 
     const t = 1 - Math.pow(1 - CAMERA_SMOOTHING, dt * 60);
