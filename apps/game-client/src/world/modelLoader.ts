@@ -29,30 +29,11 @@ async function loadContainer(fileName: string, scene: Scene): Promise<AssetConta
 
   try {
     const container = await LoadAssetContainerAsync(url, scene);
-    container.addAllToScene();
     containerCache.set(fileName, container);
     return container;
   } catch {
     return null;
   }
-}
-
-function mergeMeshes(meshes: Mesh[], name: string): Mesh | null {
-  if (meshes.length === 0) return null;
-  if (meshes.length === 1) {
-    const m = meshes[0];
-    m.name = name;
-    m.isVisible = true;
-    m.setEnabled(true);
-    return m;
-  }
-
-  const merged = Mesh.MergeMeshes(meshes, true, true, undefined, false, true);
-  if (!merged) return null;
-  merged.name = name;
-  merged.isVisible = true;
-  merged.setEnabled(true);
-  return merged;
 }
 
 export interface ModelLoadConfig {
@@ -79,11 +60,11 @@ export async function loadModel(modelId: string, scene: Scene, config?: ModelLoa
     );
 
     if (config?.variant) {
-      const variantPattern = config.variant;
-      const lodSuffix = config?.lodLevel !== undefined ? `LOD${config.lodLevel}` : 'LOD0';
+      const variantPattern = config.variant.toLowerCase();
+      const lodSuffix = config?.lodLevel !== undefined ? `lod${config.lodLevel}` : 'lod0';
       meshes = meshes.filter((m) => {
         const name = m.name.toLowerCase();
-        return name.includes(variantPattern.toLowerCase()) && name.includes(lodSuffix.toLowerCase());
+        return name.includes(variantPattern) && name.includes(lodSuffix);
       });
     }
 
@@ -92,11 +73,37 @@ export async function loadModel(modelId: string, scene: Scene, config?: ModelLoa
       return null;
     }
 
-    const sourceMesh = mergeMeshes(meshes, `foliage_${modelId}`);
-    if (!sourceMesh) {
-      console.warn(`[Foliage] Failed to merge meshes for ${modelId}`);
+    console.log(`[Foliage] Found ${meshes.length} meshes for ${modelId}: ${meshes.map(m => m.name).join(', ')}`);
+
+    const clones = meshes.map((m) => {
+      const clone = m.clone(`${modelId}_${m.name}`, null);
+      if (!clone) return null;
+      clone.setEnabled(true);
+      clone.isVisible = true;
+      return clone;
+    }).filter((c): c is Mesh => c !== null);
+
+    if (clones.length === 0) {
+      console.warn(`[Foliage] Failed to clone meshes for ${modelId}`);
       return null;
     }
+
+    let sourceMesh: Mesh;
+
+    if (clones.length === 1) {
+      sourceMesh = clones[0];
+    } else {
+      const merged = Mesh.MergeMeshes(clones, true, true, undefined, false, true);
+      if (!merged) {
+        console.warn(`[Foliage] Failed to merge meshes for ${modelId}`);
+        return null;
+      }
+      sourceMesh = merged;
+    }
+
+    sourceMesh.name = `foliage_${modelId}`;
+    sourceMesh.isVisible = false;
+    sourceMesh.setEnabled(true);
 
     modelCache.set(modelId, sourceMesh);
     return sourceMesh;

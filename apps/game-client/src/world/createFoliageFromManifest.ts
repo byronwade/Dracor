@@ -172,8 +172,13 @@ export async function createFoliageFromManifest(
       quality.foliageDensity
     );
 
-    if (matrices.length > 0) {
+    const instanceCount = matrices.length / 16;
+    if (instanceCount > 0) {
+      sourceMesh.isVisible = true;
       sourceMesh.thinInstanceSetBuffer('matrix', matrices, 16, false);
+      console.log(`[Foliage] ${group.id}: ${instanceCount} instances placed (GLB: ${usedGlb})`);
+    } else {
+      console.warn(`[Foliage] ${group.id}: no valid placements found`);
     }
   }
 
