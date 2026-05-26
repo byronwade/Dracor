@@ -154,7 +154,7 @@ export function generatePlacements(
 
     if (slopeDeg > config.maxSlope) continue;
 
-    const y = getHeightAt(cand.x, cand.z) - 0.3;
+    const y = getHeightAt(cand.x, cand.z) - 0.1;
     const scale = config.minScale + Math.random() * (config.maxScale - config.minScale);
     const rotY = Math.random() * Math.PI * 2;
 

@@ -103,39 +103,34 @@ export async function loadModel(modelId: string, scene: Scene, config?: ModelLoa
 
     console.log(`[Foliage] Matched ${meshes.length} mesh(es) for ${modelId}: ${meshes.map(m => m.name).join(', ')}`);
 
-    let sourceMesh: Mesh;
+    const clones: Mesh[] = [];
+    for (const m of meshes) {
+      const clone = m.clone(`_tmp_${modelId}_${m.name}`, null);
+      if (clone) {
+        clone.setEnabled(true);
+        clone.isVisible = true;
+        clones.push(clone);
+      }
+    }
 
-    if (meshes.length === 1) {
-      const clone = meshes[0].clone(`foliage_${modelId}`, null);
-      if (!clone) {
-        console.warn(`[Foliage] Failed to clone mesh for ${modelId}`);
-        return null;
-      }
-      sourceMesh = clone;
-    } else {
-      const clones: Mesh[] = [];
-      for (const m of meshes) {
-        const clone = m.clone(`_tmp_${modelId}_${m.name}`, null);
-        if (clone) clones.push(clone);
-      }
+    if (clones.length === 0) {
+      console.warn(`[Foliage] Failed to clone meshes for ${modelId}`);
+      return null;
+    }
 
-      if (clones.length === 0) {
-        console.warn(`[Foliage] Failed to clone meshes for ${modelId}`);
-        return null;
-      }
-
-      const merged = Mesh.MergeMeshes(clones, true, true, undefined, false, true);
-      if (!merged) {
-        for (const c of clones) c.dispose();
-        console.warn(`[Foliage] Failed to merge ${clones.length} meshes for ${modelId}`);
-        return null;
-      }
-      sourceMesh = merged;
+    const sourceMesh = Mesh.MergeMeshes(clones, true, true, undefined, false, true);
+    if (!sourceMesh) {
+      for (const c of clones) c.dispose();
+      console.warn(`[Foliage] Failed to merge meshes for ${modelId}`);
+      return null;
     }
 
     sourceMesh.name = `foliage_${modelId}`;
     sourceMesh.isVisible = false;
     sourceMesh.setEnabled(true);
+
+    const totalVerts = sourceMesh.getTotalVertices();
+    console.log(`[Foliage] Created source mesh ${modelId}: ${totalVerts} vertices, material: ${sourceMesh.material?.name ?? 'none'}`);
 
     modelCache.set(modelId, sourceMesh);
     return sourceMesh;
