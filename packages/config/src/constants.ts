@@ -1,0 +1,10 @@
+export const GAME_NAME = "Dracor";
+export const GAME_SUBTITLE = "First Road";
+export const MAX_PLAYERS_PER_ROOM = 50;
+export const WORLD_BOUNDS = { minX: -500, maxX: 500, minZ: -500, maxZ: 500 };
+export const TICK_RATE = 20;
+export const MAX_CHAT_LENGTH = 250;
+export const MAX_CHAT_HISTORY = 50;
+export const DEFAULT_SPAWN = { x: 0, y: 0, z: 0 };
+export const STARTER_WEAPONS = ['blade', 'bow', 'staff'] as const;
+export const STARTER_MEMORIES = ['ember', 'stone', 'storm'] as const;

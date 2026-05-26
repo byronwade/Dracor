@@ -1,0 +1,93 @@
+import type { Item } from '@dracor/shared';
+
+export const STARTER_ITEMS: Item[] = [
+  {
+    id: 'item_rusted_blade',
+    slug: 'rusted_blade',
+    name: 'Rusted Blade',
+    description:
+      'A short sword pitted with rust but still sharp enough to cut.',
+    itemType: 'weapon',
+    rarity: 'common',
+    requiredLevel: 1,
+    damageMin: 3,
+    damageMax: 6,
+    sellPrice: 5,
+    metadata: { weaponClass: 'blade' },
+  },
+  {
+    id: 'item_roadwarden_bow',
+    slug: 'roadwarden_bow',
+    name: 'Roadwarden Bow',
+    description: 'A simple shortbow carried by frontier patrol scouts.',
+    itemType: 'weapon',
+    rarity: 'common',
+    requiredLevel: 1,
+    damageMin: 2,
+    damageMax: 8,
+    sellPrice: 5,
+    metadata: { weaponClass: 'bow' },
+  },
+  {
+    id: 'item_emberwood_staff',
+    slug: 'emberwood_staff',
+    name: 'Emberwood Staff',
+    description:
+      'A staff carved from emberwood that hums faintly with residual heat.',
+    itemType: 'weapon',
+    rarity: 'common',
+    requiredLevel: 1,
+    damageMin: 4,
+    damageMax: 5,
+    sellPrice: 5,
+    metadata: { weaponClass: 'staff' },
+  },
+  {
+    id: 'item_ironroot_herb',
+    slug: 'ironroot_herb',
+    name: 'Ironroot Herb',
+    description:
+      'A tough, fibrous herb with medicinal properties. Grows in shaded forest groves.',
+    itemType: 'material',
+    rarity: 'common',
+    requiredLevel: 1,
+    sellPrice: 2,
+    metadata: {},
+  },
+  {
+    id: 'item_ashroot_toolbox',
+    slug: 'ashroot_toolbox',
+    name: 'Ashroot Toolbox',
+    description:
+      'A heavy iron toolbox containing precision smithing instruments. Property of Orin Ash.',
+    itemType: 'quest',
+    rarity: 'common',
+    requiredLevel: 1,
+    sellPrice: 0,
+    metadata: { questItem: true },
+  },
+  {
+    id: 'item_wolf_fang',
+    slug: 'wolf_fang',
+    name: 'Wolf Fang',
+    description:
+      'A sharp canine tooth from a Road Wolf. Valued by crafters and alchemists.',
+    itemType: 'material',
+    rarity: 'common',
+    requiredLevel: 1,
+    sellPrice: 3,
+    metadata: {},
+  },
+  {
+    id: 'item_simple_health_draught',
+    slug: 'simple_health_draught',
+    name: 'Simple Health Draught',
+    description:
+      'A basic healing potion brewed from Ironroot and clean water. Restores a small amount of health.',
+    itemType: 'consumable',
+    rarity: 'common',
+    requiredLevel: 1,
+    sellPrice: 5,
+    metadata: { healAmount: 25 },
+  },
+];

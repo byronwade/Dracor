@@ -1,0 +1,20 @@
+{
+  "name": "@dracor/renderer-core",
+  "version": "0.2.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^7.0.0",
+    "@babylonjs/materials": "^7.0.0"
+  },
+  "devDependencies": {
+    "@dracor/config": "workspace:*",
+    "typescript": "^5.5.0"
+  }
+}

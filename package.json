@@ -1,0 +1,27 @@
+{
+  "name": "dracor",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Dracor: First Road — A browser-first social action RPG with high-end visual rendering",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
+    "clean": "turbo clean",
+    "validate:world": "turbo build --filter=@dracor/world-data --filter=@dracor/asset-pipeline && tsx tools/world-validator/src/index.ts",
+    "optimize:assets": "turbo build --filter=@dracor/world-data --filter=@dracor/asset-pipeline && tsx tools/asset-optimizer/src/index.ts",
+    "analyze:client": "pnpm --filter @dracor/game-client build && echo 'Build complete — check dist/ size'",
+    "test:server": "pnpm --filter @dracor/game-server typecheck && curl -s http://localhost:2567/health 2>/dev/null || echo 'Server not running — start with: pnpm --filter @dracor/game-server dev'"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.5.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@dracor/world-validator",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "validate": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dracor/world-data": "workspace:*",
+    "@dracor/asset-pipeline": "workspace:*"
+  },
+  "devDependencies": {
+    "@dracor/config": "workspace:*",
+    "tsx": "^4.7.0",
+    "typescript": "^5.5.0"
+  }
+}

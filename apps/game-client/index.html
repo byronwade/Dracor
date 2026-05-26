@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dracor: Ironvale Outskirts</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #050505;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      #game-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        outline: none;
+        touch-action: none;
+      }
+
+      #chat-container {
+        position: absolute;
+        bottom: 16px;
+        left: 16px;
+        width: 360px;
+        max-height: 280px;
+        display: flex;
+        flex-direction: column;
+        pointer-events: none;
+      }
+
+      #chat-container > * {
+        pointer-events: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game-canvas"></canvas>
+    <div id="chat-container"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "@dracor/game-data",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@dracor/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@dracor/config": "workspace:*",
+    "typescript": "^5.5.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "extends": "@dracor/config/typescript",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": false,
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
