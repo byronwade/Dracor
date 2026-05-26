@@ -174,10 +174,14 @@ export class GameApp {
 
   private update(dt: number): void {
     if (!this.worldEntered) return;
-    if (this.pauseMenu.isOpen() || this.settingsPanel.isOpen()) return;
 
-    const input = this.inputController.getInput();
-    this.playerController.update(input, dt);
+    const menuOpen = this.pauseMenu.isOpen() || this.settingsPanel.isOpen();
+
+    if (!menuOpen) {
+      const input = this.inputController.getInput();
+      this.playerController.update(input, dt);
+    }
+
     this.multiplayerClient.interpolateRemotePlayers();
 
     this.devPanel.update({
