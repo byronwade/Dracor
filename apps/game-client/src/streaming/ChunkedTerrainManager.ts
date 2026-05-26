@@ -21,67 +21,104 @@ interface LoadedChunk {
 const WORLD_SEED = new WorldSeed('dracor-world-001');
 const DYNAMIC_CHUNK_SIZE = 100;
 
-const COLOR_DEEP_WATER = new Color4(0.05, 0.12, 0.25, 1);
-const COLOR_SHALLOW_WATER = new Color4(0.10, 0.25, 0.40, 1);
-const COLOR_SAND = new Color4(0.76, 0.70, 0.55, 1);
-const COLOR_GRASS = new Color4(0.30, 0.55, 0.20, 1);
-const COLOR_DARK_GRASS = new Color4(0.20, 0.40, 0.12, 1);
-const COLOR_FOREST_FLOOR = new Color4(0.25, 0.30, 0.15, 1);
-const COLOR_ROCK = new Color4(0.50, 0.48, 0.45, 1);
-const COLOR_DARK_ROCK = new Color4(0.35, 0.33, 0.30, 1);
-const COLOR_SNOW = new Color4(0.90, 0.92, 0.95, 1);
-const COLOR_DIRT = new Color4(0.45, 0.35, 0.22, 1);
-
-function lerpColor(a: Color4, b: Color4, t: number): Color4 {
-  const ct = Math.max(0, Math.min(1, t));
-  return new Color4(
-    a.r + (b.r - a.r) * ct,
-    a.g + (b.g - a.g) * ct,
-    a.b + (b.b - a.b) * ct,
-    1
-  );
+function hashPos(x: number, z: number): number {
+  let h = ((x * 374761393) ^ (z * 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) & 0x7fffffff) / 0x7fffffff;
 }
 
-function getTerrainColor(height: number, slopeAngle: number): Color4 {
+function hashPos2(x: number, z: number): number {
+  let h = ((x * 123456789) ^ (z * 987654321)) | 0;
+  h = Math.imul(h ^ (h >>> 15), 2654435769);
+  return ((h ^ (h >>> 13)) & 0x7fffffff) / 0x7fffffff;
+}
+
+function lerpC(ar: number, ag: number, ab: number, br: number, bg: number, bb: number, t: number): Color4 {
+  const ct = t < 0 ? 0 : t > 1 ? 1 : t;
+  return new Color4(ar + (br - ar) * ct, ag + (bg - ag) * ct, ab + (bb - ab) * ct, 1);
+}
+
+function getTerrainColor(height: number, slopeAngle: number, worldX: number, worldZ: number): Color4 {
+  const n1 = hashPos(Math.floor(worldX * 0.15), Math.floor(worldZ * 0.15));
+  const n2 = hashPos2(Math.floor(worldX * 0.05), Math.floor(worldZ * 0.05));
+  const n3 = hashPos(Math.floor(worldX * 0.4), Math.floor(worldZ * 0.4));
+
   if (height < -5) {
     const t = Math.min(1, (-height - 5) / 30);
-    return lerpColor(COLOR_SHALLOW_WATER, COLOR_DEEP_WATER, t);
+    return lerpC(0.08, 0.20, 0.35, 0.03, 0.08, 0.20, t);
   }
 
   if (height < 1) {
     const t = (height + 5) / 6;
-    return lerpColor(COLOR_SHALLOW_WATER, COLOR_SAND, t);
+    const sandVar = n1 * 0.1;
+    return lerpC(0.08, 0.20, 0.35, 0.72 + sandVar, 0.65 + sandVar, 0.48 + sandVar * 0.5, t);
   }
 
-  if (height < 4) {
-    const t = (height - 1) / 3;
-    return lerpColor(COLOR_SAND, COLOR_GRASS, t);
+  if (height < 5) {
+    const t = (height - 1) / 4;
+    return lerpC(0.72, 0.65, 0.48, 0.45 + n1 * 0.15, 0.55 + n2 * 0.1, 0.25, t);
   }
 
-  let baseColor: Color4;
-  if (height < 30) {
-    const t = (height - 4) / 26;
-    baseColor = lerpColor(COLOR_GRASS, COLOR_DARK_GRASS, t);
-  } else if (height < 60) {
-    const t = (height - 30) / 30;
-    baseColor = lerpColor(COLOR_DARK_GRASS, COLOR_FOREST_FLOOR, t);
+  let r: number, g: number, b: number;
+
+  if (height < 20) {
+    const dirtPatch = n2 > 0.7 ? (n2 - 0.7) / 0.3 : 0;
+    const yellowGrass = n1 > 0.6 ? (n1 - 0.6) / 0.4 : 0;
+    r = 0.25 + n3 * 0.08 + dirtPatch * 0.2 + yellowGrass * 0.15;
+    g = 0.48 + n1 * 0.1 - dirtPatch * 0.15 + yellowGrass * 0.05;
+    b = 0.15 + n3 * 0.05 - dirtPatch * 0.05;
+  } else if (height < 40) {
+    const t = (height - 20) / 20;
+    const darkPatch = n1 > 0.5 ? (n1 - 0.5) * 0.3 : 0;
+    r = 0.18 + n3 * 0.06 - t * 0.04 - darkPatch;
+    g = 0.38 + n2 * 0.08 - t * 0.08 - darkPatch;
+    b = 0.10 + n1 * 0.04 + darkPatch * 0.02;
+  } else if (height < 65) {
+    const t = (height - 40) / 25;
+    r = 0.20 + n3 * 0.08 + t * 0.10;
+    g = 0.28 + n1 * 0.06 - t * 0.06;
+    b = 0.12 + n2 * 0.04 + t * 0.04;
   } else if (height < 100) {
-    const t = (height - 60) / 40;
-    baseColor = lerpColor(COLOR_FOREST_FLOOR, COLOR_ROCK, t);
+    const t = (height - 65) / 35;
+    const mossBlend = n2 > 0.6 ? (n2 - 0.6) * 0.5 : 0;
+    r = 0.38 + n3 * 0.08 + t * 0.10 - mossBlend * 0.1;
+    g = 0.36 + n1 * 0.06 - t * 0.04 + mossBlend * 0.08;
+    b = 0.32 + n2 * 0.06 + t * 0.08 - mossBlend * 0.05;
   } else if (height < 140) {
     const t = (height - 100) / 40;
-    baseColor = lerpColor(COLOR_ROCK, COLOR_SNOW, t);
+    const dirtShow = n1 > 0.7 ? (n1 - 0.7) * 0.4 : 0;
+    r = 0.55 + t * 0.30 + n3 * 0.05 - dirtShow * 0.15;
+    g = 0.53 + t * 0.32 + n1 * 0.04 - dirtShow * 0.10;
+    b = 0.48 + t * 0.35 + n2 * 0.04;
   } else {
-    baseColor = COLOR_SNOW;
+    r = 0.88 + n3 * 0.06;
+    g = 0.90 + n1 * 0.05;
+    b = 0.92 + n2 * 0.04;
   }
 
-  if (slopeAngle > 25) {
-    const rockBlend = Math.min(1, (slopeAngle - 25) / 20);
-    const rockColor = height > 80 ? COLOR_DARK_ROCK : COLOR_ROCK;
-    baseColor = lerpColor(baseColor, rockColor, rockBlend);
+  if (slopeAngle > 15) {
+    const rockBlend = Math.min(1, (slopeAngle - 15) / 25);
+    const rockR = 0.40 + n3 * 0.10;
+    const rockG = 0.38 + n1 * 0.08;
+    const rockB = 0.35 + n2 * 0.06;
+    r = r + (rockR - r) * rockBlend;
+    g = g + (rockG - g) * rockBlend;
+    b = b + (rockB - b) * rockBlend;
   }
 
-  return baseColor;
+  if (slopeAngle > 5 && slopeAngle < 20 && height > 5 && height < 60) {
+    const dirtBlend = Math.min(1, (slopeAngle - 5) / 15) * 0.3 * n2;
+    r = r + (0.42 - r) * dirtBlend;
+    g = g + (0.32 - g) * dirtBlend;
+    b = b + (0.20 - b) * dirtBlend;
+  }
+
+  return new Color4(
+    Math.max(0, Math.min(1, r)),
+    Math.max(0, Math.min(1, g)),
+    Math.max(0, Math.min(1, b)),
+    1
+  );
 }
 
 export class ChunkedTerrainManager {
@@ -191,7 +228,7 @@ export class ChunkedTerrainManager {
           slopeAngle = Math.atan(Math.sqrt(slopeX * slopeX + slopeZ * slopeZ)) * (180 / Math.PI);
         }
 
-        const color = getTerrainColor(h, slopeAngle);
+        const color = getTerrainColor(h, slopeAngle, worldX, worldZ);
         const vi = (i / 3) * 4;
         colors[vi] = color.r;
         colors[vi + 1] = color.g;
