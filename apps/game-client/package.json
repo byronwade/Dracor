@@ -11,13 +11,17 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@babylonjs/core": "^7.0.0",
-    "@babylonjs/gui": "^7.0.0",
-    "@babylonjs/loaders": "^7.0.0",
-    "@babylonjs/materials": "^7.0.0",
-    "colyseus.js": "^0.15.0"
+    "@babylonjs/addons": "^9.0.0",
+    "@babylonjs/core": "^9.0.0",
+    "@babylonjs/gui": "^9.0.0",
+    "@babylonjs/havok": "^1.3.12",
+    "@babylonjs/loaders": "^9.0.0",
+    "@babylonjs/materials": "^9.0.0",
+    "colyseus.js": "^0.15.0",
+    "simplex-noise": "^4.0.3"
   },
   "devDependencies": {
+    "@babylonjs/inspector": "^9.0.0",
     "@dracor/atmosphere": "workspace:*",
     "@dracor/config": "workspace:*",
     "@dracor/world-gen": "workspace:*",

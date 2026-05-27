@@ -27,6 +27,9 @@ import { createLoadingScreen, type LoadingScreen } from '../ui/createLoadingScre
 import { createWorldMap, type WorldMap } from '../ui/createWorldMap';
 import type { AtmosphereEngine } from '@dracor/atmosphere';
 import type { BabylonAtmosphereRenderer } from '../atmosphere/BabylonAtmosphereRenderer';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import type { StreamingManager } from '../streaming/StreamingManager';
+import { setupInspectorToggle } from '../debug/inspectorToggle';
 
 export class GameApp {
   private engine!: Engine;
@@ -35,6 +38,7 @@ export class GameApp {
   private sceneResult!: SceneBuildResult;
   private atmosphereEngine: AtmosphereEngine | null = null;
   private atmosphereRenderer: BabylonAtmosphereRenderer | null = null;
+  private streamingManager: StreamingManager | null = null;
   private inputController!: InputController;
   private playerController!: PlayerController;
   private cameraController!: CameraController;
@@ -59,6 +63,8 @@ export class GameApp {
   private characterLevel: number;
   private characterRace: string;
   private worldEntered = false;
+  private readonly _streamPos = new Vector3();
+  private readonly _streamFwd = new Vector3(0, 0, 1);
 
   constructor(private canvas: HTMLCanvasElement) {
     const params = new URLSearchParams(window.location.search);
@@ -93,8 +99,7 @@ export class GameApp {
       antialias: true,
     });
 
-    const autoTier = autoSelectQuality(caps);
-    const tier = autoTier;
+    const tier = autoSelectQuality(caps);
     this.quality = getQualitySettings(tier);
     this.settings.set('qualityTier', tier);
     console.log(`[Game] Quality tier: ${tier} (WebGPU: ${caps.webgpu}, WebGL2: ${caps.webgl2})`);
@@ -105,8 +110,10 @@ export class GameApp {
     const builder = getSceneBuilder('ironvale_outskirts');
     this.sceneResult = await builder(this.engine, this.quality);
     this.scene = this.sceneResult.scene;
+    setupInspectorToggle(this.scene);
     this.atmosphereEngine = this.sceneResult.atmosphereEngine;
     this.atmosphereRenderer = this.sceneResult.atmosphereRenderer;
+    this.streamingManager = this.sceneResult.streamingManager;
 
     this.loadingScreen.updateStatus('Spawning player...');
     this.loadingScreen.updateProgress(60);
@@ -201,7 +208,6 @@ export class GameApp {
     });
 
     this.applySettings(this.settings.get());
-    this.enterWorld();
   }
 
   private enterWorld(): void {
@@ -244,6 +250,12 @@ export class GameApp {
     }
     this.sceneResult.updateWind(dt);
 
+    if (this.streamingManager) {
+      const p = this.playerController.getPosition();
+      this._streamPos.set(p.x, p.y, p.z);
+      this.streamingManager.update(this._streamPos, this._streamFwd, dt);
+    }
+
     this.multiplayerClient.interpolateRemotePlayers();
 
     this.devPanel.update({
@@ -251,6 +263,7 @@ export class GameApp {
       networkStats: this.multiplayerClient.getNetworkStats(),
       playerCount: this.multiplayerClient.getPlayerCount(),
       roomName: 'world_room',
+      streamingStats: this.streamingManager?.getStreamingStats(),
     });
 
     const pos = this.playerController.getPosition();
@@ -296,7 +309,7 @@ export class GameApp {
     };
     if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
       try {
-        const gpu = (navigator as unknown as { gpu: GPU }).gpu;
+        const gpu = (navigator as unknown as { gpu: { requestAdapter(): Promise<{ limits: Record<string, number> } | null> } }).gpu;
         const adapter = await gpu.requestAdapter();
         if (adapter) {
           caps.webgpu = true;
@@ -341,26 +354,28 @@ export class GameApp {
     return caps;
   }
 
-  private handleResize = (): void => { this.engine.resize(); };
+  private handleResize = (): void => { this.engine?.resize(); };
 
   dispose(): void {
     window.removeEventListener('resize', this.handleResize);
-    this.multiplayerClient.disconnect();
-    this.gameLoop.stop();
-    this.inputController.dispose();
-    this.cameraController.dispose();
-    this.playerController.dispose();
-    this.chatController.dispose();
-    this.audio.dispose();
-    this.hud.dispose();
-    this.devPanel.dispose();
-    this.minimap.dispose();
-    this.worldMap.dispose();
-    this.mainMenu.dispose();
-    this.pauseMenu.dispose();
-    this.settingsPanel.dispose();
-    this.loadingScreen.dispose();
-    this.scene.dispose();
-    this.engine.dispose();
+    this.multiplayerClient?.disconnect();
+    this.gameLoop?.stop();
+    this.inputController?.dispose();
+    this.cameraController?.dispose();
+    this.playerController?.dispose();
+    this.chatController?.dispose();
+    this.audio?.dispose();
+    this.hud?.dispose();
+    this.devPanel?.dispose();
+    this.minimap?.dispose();
+    this.worldMap?.dispose();
+    this.mainMenu?.dispose();
+    this.pauseMenu?.dispose();
+    this.settingsPanel?.dispose();
+    this.loadingScreen?.dispose();
+    this.atmosphereRenderer?.dispose();
+    this.streamingManager?.dispose();
+    this.scene?.dispose();
+    this.engine?.dispose();
   }
 }
