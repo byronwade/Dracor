@@ -75,6 +75,9 @@ importers:
       '@colyseus/ws-transport':
         specifier: ^0.15.0
         version: 0.15.3(@colyseus/core@0.15.57(@colyseus/schema@2.0.37))(@colyseus/schema@2.0.37)
+      '@dracor/ecs':
+        specifier: workspace:*
+        version: link:../../packages/ecs
       '@dracor/netcode':
         specifier: workspace:*
         version: link:../../packages/netcode

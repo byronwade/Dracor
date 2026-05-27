@@ -1,28 +1,46 @@
 import { Room, Client } from "@colyseus/core";
 import type { ClientInputMessage } from "@dracor/netcode";
-import { TICK_RATE } from "@dracor/netcode";
+import { TICK_RATE, MAX_CHAT_LENGTH } from "@dracor/netcode";
+import {
+  addEntity,
+  addComponent,
+  removeEntity,
+  createDracorWorld,
+  type DracorWorld,
+  createInputSystem,
+  movementSystem,
+  syncSystem,
+  hashSessionId,
+  type QueuedInput,
+  type SyncTarget,
+} from "@dracor/ecs";
 import { WorldState } from "../schema/WorldState";
 import { PlayerState } from "../schema/PlayerState";
 import { ChatState } from "../schema/ChatState";
 import { createFixedTickLoop } from "../simulation/fixedTickLoop";
 import type { FixedTickLoop } from "../simulation/fixedTickLoop";
-import { simulatePlayerMovement } from "../simulation/simulatePlayerMovement";
 import {
   validatePlayerInput,
   registerPlayer,
   unregisterPlayer,
 } from "../simulation/validatePlayerInput";
-import { clampToWorldBounds } from "../simulation/worldBounds";
 import { persistenceQueue } from "../persistence/persistenceQueue";
 import { logger } from "../logging/logger";
 
-interface QueuedInput {
+interface EcsQueuedInput {
   sessionId: string;
-  input: ClientInputMessage;
+  seq: number;
+  ecsInput: QueuedInput;
 }
 
 interface ChatRateState {
   timestamps: number[];
+}
+
+interface PlayerMapping {
+  eid: number;
+  hash: number;
+  syncTarget: SyncTarget;
 }
 
 const MAX_CHAT_PER_WINDOW = 5;
@@ -45,19 +63,27 @@ function sanitizeChatContent(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   let content = raw.trim();
   content = content.replace(/[\x00-\x1f\x7f]/g, "");
-  if (content.length === 0 || content.length > 250) return null;
+  if (content.length === 0 || content.length > MAX_CHAT_LENGTH) return null;
   return content;
 }
 
 export class WorldRoom extends Room<WorldState> {
   maxClients = 50;
   private tickLoop: FixedTickLoop | null = null;
-  private inputQueue: QueuedInput[] = [];
+  private inputQueue: EcsQueuedInput[] = [];
   private chatRates = new Map<string, ChatRateState>();
   private usedNames = new Set<string>();
 
+  private ecsWorld!: DracorWorld;
+  private inputSystem!: ReturnType<typeof createInputSystem>;
+  private playerMappings = new Map<string, PlayerMapping>();
+  private syncTargets = new Map<number, SyncTarget>();
+
   onCreate(_options: any): void {
     this.setState(new WorldState());
+
+    this.ecsWorld = createDracorWorld();
+    this.inputSystem = createInputSystem();
 
     this.tickLoop = createFixedTickLoop(TICK_RATE, (tick, dt) => {
       this.simulationTick(tick, dt);
@@ -67,6 +93,9 @@ export class WorldRoom extends Room<WorldState> {
     this.onMessage("input", (client: Client, data: any) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
+
+      const mapping = this.playerMappings.get(client.sessionId);
+      if (!mapping) return;
 
       const input: ClientInputMessage = {
         type: "input",
@@ -81,32 +110,20 @@ export class WorldRoom extends Room<WorldState> {
 
       if (!validatePlayerInput(client.sessionId, input)) return;
 
-      this.inputQueue.push({ sessionId: client.sessionId, input });
-    });
+      player.lastInputSeq = input.seq;
 
-    this.onMessage("move", (client: Client, data: any) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
-
-      const { x, y, z, rotationY } = data;
-      if (typeof x !== "number" || !isFinite(x)) return;
-      if (typeof y !== "number" || !isFinite(y)) return;
-      if (typeof z !== "number" || !isFinite(z)) return;
-
-      const clamped = clampToWorldBounds(x, y, z);
-      player.x = clamped.x;
-      player.y = clamped.y;
-      player.z = clamped.z;
-
-      if (rotationY !== undefined) {
-        if (typeof rotationY !== "number" || !isFinite(rotationY)) return;
-        player.yaw = rotationY;
-      }
-
-      player.isMoving = true;
-      this.clock.setTimeout(() => {
-        if (player) player.isMoving = false;
-      }, 100);
+      this.inputQueue.push({
+        sessionId: client.sessionId,
+        seq: input.seq,
+        ecsInput: {
+          sessionHash: mapping.hash,
+          moveX: input.moveX,
+          moveZ: input.moveZ,
+          yaw: input.yaw,
+          sprint: !!input.sprint,
+          jump: !!input.jump,
+        },
+      });
     });
 
     this.onMessage("chat", (client: Client, data: any) => {
@@ -159,6 +176,44 @@ export class WorldRoom extends Room<WorldState> {
     if (options?.characterId) player.characterId = String(options.characterId).slice(0, 64);
 
     this.state.players.set(client.sessionId, player);
+
+    // Create ECS entity
+    const eid = addEntity(this.ecsWorld);
+    const { Position, Rotation, Velocity, InputState, NetworkId, Health, IsPlayer } =
+      this.ecsWorld.components;
+
+    addComponent(this.ecsWorld, eid, Position);
+    addComponent(this.ecsWorld, eid, Rotation);
+    addComponent(this.ecsWorld, eid, Velocity);
+    addComponent(this.ecsWorld, eid, InputState);
+    addComponent(this.ecsWorld, eid, NetworkId);
+    addComponent(this.ecsWorld, eid, Health);
+    addComponent(this.ecsWorld, eid, IsPlayer);
+
+    // Initialize component data
+    Position.x[eid] = 0;
+    Position.y[eid] = 0;
+    Position.z[eid] = 0;
+    Rotation.yaw[eid] = 0;
+    Velocity.vx[eid] = 0;
+    Velocity.vy[eid] = 0;
+    Velocity.vz[eid] = 0;
+    InputState.moveX[eid] = 0;
+    InputState.moveZ[eid] = 0;
+    InputState.yaw[eid] = 0;
+    InputState.sprint[eid] = 0;
+    InputState.jump[eid] = 0;
+    Health.current[eid] = 100;
+    Health.max[eid] = 100;
+
+    const hash = hashSessionId(client.sessionId);
+    NetworkId.sessionHash[eid] = hash;
+
+    const syncTarget: SyncTarget = { x: 0, y: 0, z: 0, yaw: 0, isMoving: false };
+
+    this.playerMappings.set(client.sessionId, { eid, hash, syncTarget });
+    this.syncTargets.set(hash, syncTarget);
+
     this.usedNames.add(name.toLowerCase());
     this.chatRates.set(client.sessionId, { timestamps: [] });
 
@@ -187,6 +242,14 @@ export class WorldRoom extends Room<WorldState> {
       );
     }
 
+    // Clean up ECS entity
+    const mapping = this.playerMappings.get(client.sessionId);
+    if (mapping) {
+      removeEntity(this.ecsWorld, mapping.eid);
+      this.syncTargets.delete(mapping.hash);
+      this.playerMappings.delete(client.sessionId);
+    }
+
     this.usedNames.delete(name.toLowerCase());
     this.chatRates.delete(client.sessionId);
     unregisterPlayer(client.sessionId);
@@ -208,6 +271,8 @@ export class WorldRoom extends Room<WorldState> {
     }
     this.chatRates.clear();
     this.usedNames.clear();
+    this.playerMappings.clear();
+    this.syncTargets.clear();
     logger.info("WorldRoom disposed");
   }
 
@@ -266,30 +331,38 @@ export class WorldRoom extends Room<WorldState> {
   }
 
   private simulationTick(tick: number, _dt: number): void {
+    // Drain and convert input queue to ECS format
     const inputs = this.inputQueue;
     this.inputQueue = [];
 
+    const ecsQueue: QueuedInput[] = [];
     for (const queued of inputs) {
-      const player = this.state.players.get(queued.sessionId);
+      ecsQueue.push(queued.ecsInput);
+    }
+
+    // Set ECS world time
+    this.ecsWorld.time.delta = 1 / TICK_RATE;
+    this.ecsWorld.time.tick = tick;
+
+    // Run ECS systems pipeline
+    this.inputSystem(this.ecsWorld, ecsQueue);
+    movementSystem(this.ecsWorld, () => 0);
+    syncSystem(this.ecsWorld, this.syncTargets);
+
+    // Write ECS sync targets back to Colyseus PlayerState schemas
+    for (const [sessionId, mapping] of this.playerMappings) {
+      const player = this.state.players.get(sessionId);
       if (!player) continue;
 
-      simulatePlayerMovement(
-        player,
-        {
-          moveX: queued.input.moveX,
-          moveZ: queued.input.moveZ,
-          yaw: queued.input.yaw,
-          sprint: queued.input.sprint,
-          jump: queued.input.jump,
-          dt: queued.input.dt,
-        },
-        () => 0
-      );
-
-      player.lastInputSeq = queued.input.seq;
+      const target = mapping.syncTarget;
+      player.x = target.x;
+      player.y = target.y;
+      player.z = target.z;
+      player.yaw = target.yaw;
+      player.isMoving = target.isMoving;
     }
 
     this.state.tick = tick;
-    this.state.worldTime += 50;
+    this.state.worldTime += Math.round(1000 / TICK_RATE);
   }
 }
