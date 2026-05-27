@@ -30,6 +30,8 @@ import type { BabylonAtmosphereRenderer } from '../atmosphere/BabylonAtmosphereR
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { StreamingManager } from '../streaming/StreamingManager';
 import { setupInspectorToggle } from '../debug/inspectorToggle';
+import { getClientWorld, disposeClientWorld } from '../ecs/clientWorld';
+import { interpolationSystem } from '../ecs/systems/interpolationSystem';
 
 export class GameApp {
   private engine!: Engine;
@@ -189,6 +191,9 @@ export class GameApp {
 
     this.settings.onChange((s) => { this.applySettings(s); });
 
+    // Initialize client ECS world (lazy singleton, first call creates it)
+    getClientWorld();
+
     this.loadingScreen.updateStatus('Starting game loop...');
     this.loadingScreen.updateProgress(95);
 
@@ -257,6 +262,7 @@ export class GameApp {
     }
 
     this.multiplayerClient.interpolateRemotePlayers();
+    interpolationSystem(getClientWorld());
 
     this.devPanel.update({
       connectionState: this.multiplayerClient.getConnectionState(),
@@ -358,6 +364,7 @@ export class GameApp {
 
   dispose(): void {
     window.removeEventListener('resize', this.handleResize);
+    disposeClientWorld();
     this.multiplayerClient?.disconnect();
     this.gameLoop?.stop();
     this.inputController?.dispose();
