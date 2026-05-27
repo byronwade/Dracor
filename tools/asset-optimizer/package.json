@@ -9,7 +9,12 @@
   },
   "dependencies": {
     "@dracor/world-data": "workspace:*",
-    "@dracor/asset-pipeline": "workspace:*"
+    "@dracor/asset-pipeline": "workspace:*",
+    "@gltf-transform/core": "^4.1.0",
+    "@gltf-transform/extensions": "^4.1.0",
+    "@gltf-transform/functions": "^4.1.0",
+    "draco3dgltf": "^1.5.7",
+    "meshoptimizer": "^0.22.0"
   },
   "devDependencies": {
     "@dracor/config": "workspace:*",
