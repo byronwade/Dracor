@@ -1,3 +1,8 @@
+import { AIAgent, IsNPC } from './components-ai';
+import { AudioSource, AudioListener } from './components-audio';
+import { MaterialOverride } from './components-material';
+import { Renderable, LODGroup } from './components-render';
+
 const MAX_ENTITIES = 10_000;
 
 export const Position = {
@@ -45,6 +50,8 @@ export const IsPlayer = {};
 
 export const IsRemote = {};
 
+export { AudioSource, AudioListener };
+
 export type DracorComponents = {
   Position: typeof Position;
   Rotation: typeof Rotation;
@@ -56,4 +63,11 @@ export type DracorComponents = {
   IsMoving: typeof IsMoving;
   IsPlayer: typeof IsPlayer;
   IsRemote: typeof IsRemote;
+  AIAgent: typeof AIAgent;
+  IsNPC: typeof IsNPC;
+  AudioSource: typeof AudioSource;
+  AudioListener: typeof AudioListener;
+  MaterialOverride: typeof MaterialOverride;
+  Renderable: typeof Renderable;
+  LODGroup: typeof LODGroup;
 };
