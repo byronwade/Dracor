@@ -16,7 +16,7 @@ import { MultiplayerClient } from './MultiplayerClient';
 import { ChatController } from './ChatController';
 import { GameLoop } from './GameLoop';
 import { SettingsManager } from '../systems/SettingsManager';
-import { AudioManager } from '../systems/AudioManager';
+import { AudioManager } from '../audio/AudioManager';
 import { createGameHud, type GameHud } from '../ui/createGameHud';
 import { createDevPanel, type DevPanel } from '../ui/createDevPanel';
 import { createMinimap, type Minimap } from '../ui/createMinimap';
@@ -123,6 +123,7 @@ export class GameApp {
     this.inputController = new InputController();
     this.inputController.attachCanvas(this.canvas);
 
+    console.log('[GameApp] Creating player...');
     const spawn = { x: 0, y: 0, z: 10 };
     this.playerController = new PlayerController(
       this.scene,
@@ -137,6 +138,7 @@ export class GameApp {
       }
     );
 
+    console.log('[GameApp] Creating camera...');
     this.cameraController = new CameraController(
       this.scene,
       this.playerController.getMesh(),

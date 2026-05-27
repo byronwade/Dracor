@@ -18,10 +18,12 @@
     "@babylonjs/loaders": "^9.0.0",
     "@babylonjs/materials": "^9.0.0",
     "colyseus.js": "^0.15.0",
+    "howler": "^2.2.4",
     "simplex-noise": "^4.0.3"
   },
   "devDependencies": {
     "@babylonjs/inspector": "^9.0.0",
+    "@types/howler": "^2.2.12",
     "@dracor/atmosphere": "workspace:*",
     "@dracor/config": "workspace:*",
     "@dracor/ecs": "workspace:*",
