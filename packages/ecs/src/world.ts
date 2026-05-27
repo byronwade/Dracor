@@ -29,6 +29,8 @@ export function createDracorWorld(): DracorWorld {
       IsRemote,
       AIAgent,
       IsNPC,
+      AudioSource,
+      AudioListener,
       MaterialOverride,
       Renderable,
       LODGroup,
