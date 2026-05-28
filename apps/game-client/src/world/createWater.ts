@@ -2,6 +2,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { FresnelParameters } from '@babylonjs/core/Materials/fresnelParameters';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
@@ -18,11 +19,30 @@ function getWaterMaterial(scene: Scene): StandardMaterial {
 
   // Deep water base color
   mat.diffuseColor = new Color3(0.02, 0.06, 0.12);
-  mat.specularColor = new Color3(0.6, 0.65, 0.7);
-  mat.specularPower = 512;
+  mat.specularColor = new Color3(0.8, 0.85, 0.9);
+  mat.specularPower = 256;
   mat.emissiveColor = new Color3(0.008, 0.02, 0.04);
-  mat.alpha = 0.65;
+  mat.alpha = 0.55;
   mat.backFaceCulling = false;
+
+  // Fresnel — more reflective at grazing angles like real water
+  mat.diffuseFresnelParameters = new FresnelParameters();
+  mat.diffuseFresnelParameters.leftColor = new Color3(1, 1, 1);
+  mat.diffuseFresnelParameters.rightColor = new Color3(0.02, 0.06, 0.12);
+  mat.diffuseFresnelParameters.bias = 0.4;
+  mat.diffuseFresnelParameters.power = 2;
+
+  mat.emissiveFresnelParameters = new FresnelParameters();
+  mat.emissiveFresnelParameters.leftColor = new Color3(0.08, 0.15, 0.25);
+  mat.emissiveFresnelParameters.rightColor = new Color3(0, 0, 0);
+  mat.emissiveFresnelParameters.bias = 0.1;
+  mat.emissiveFresnelParameters.power = 3;
+
+  mat.reflectionFresnelParameters = new FresnelParameters();
+  mat.reflectionFresnelParameters.leftColor = new Color3(0.5, 0.55, 0.6);
+  mat.reflectionFresnelParameters.rightColor = new Color3(0, 0, 0);
+  mat.reflectionFresnelParameters.bias = 0.2;
+  mat.reflectionFresnelParameters.power = 2;
 
   // Normal map for wave detail
   const bumpTex = new Texture('/textures/terrain/water_normal.webp', scene);
