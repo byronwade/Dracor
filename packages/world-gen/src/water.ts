@@ -46,7 +46,7 @@ const N = GRID_SIZE;          // 128
 const CELL_COUNT = N * N;     // 16 384
 
 /** How many rivers to simulate. */
-const RIVER_COUNT = 28;
+const RIVER_COUNT = 55;
 
 /**
  * Minimum normalised flow (0–1 range after normalisation) above which a cell
@@ -55,10 +55,10 @@ const RIVER_COUNT = 28;
 const RIVER_FLOW_THRESHOLD = 0.05;
 
 /** Maximum BFS cells flooded for a single lake depression. */
-const MAX_LAKE_CELLS = 60;
+const MAX_LAKE_CELLS = 150;
 
 /** Elevation delta above the pit floor within which cells are flooded as lake. */
-const LAKE_FILL_DELTA = 3.0;   // world units (metres)
+const LAKE_FILL_DELTA = 6.0;   // world units (metres)
 
 // 8-neighbour offsets [dx, dz]
 const NEIGHBOURS_8: ReadonlyArray<[number, number]> = [
