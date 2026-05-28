@@ -8,19 +8,23 @@ export function createContinentalMap(seed: number): ContinentalFn {
   const coastNoise = createWarpedNoise2D(seed, 5, 0.4);
   const detailNoise = createFractalNoise2D(hashCombine(seed, 54321), 3);
   const peninsulaNoise = createFractalNoise2D(hashCombine(seed, 12345), 2, 2.0, 0.6);
+  const islandNoise = createFractalNoise2D(hashCombine(seed, 67890), 4, 2.0, 0.5);
+  const fjordNoise = createWarpedNoise2D(hashCombine(seed, 11223), 3, 0.6);
 
   const coastFreq = 0.0004;
   const detailFreq = 0.002;
   const peninsulaFreq = 0.0008;
+  const islandFreq = 0.0012;
+  const fjordFreq = 0.0006;
 
-  const landRadius = HALF_WORLD * 0.78;
-  const coastAmplitude = HALF_WORLD * 0.18;
-  const peninsulaAmplitude = HALF_WORLD * 0.12;
+  const landRadius = HALF_WORLD * 0.72;
+  const coastAmplitude = HALF_WORLD * 0.22;
+  const peninsulaAmplitude = HALF_WORLD * 0.15;
 
   return (worldX: number, worldZ: number): number => {
     const dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
-
     const angle = Math.atan2(worldZ, worldX);
+
     const coastOffset = coastNoise(worldX * coastFreq, worldZ * coastFreq) * coastAmplitude;
     const peninsulaOffset = peninsulaNoise(
       worldX * peninsulaFreq + Math.cos(angle) * 500,
@@ -30,13 +34,30 @@ export function createContinentalMap(seed: number): ContinentalFn {
     const effectiveRadius = landRadius + coastOffset + peninsulaOffset;
 
     let continentalValue: number;
-    if (dist < effectiveRadius * 0.7) {
+    if (dist < effectiveRadius * 0.65) {
       continentalValue = 1.0;
-    } else if (dist > effectiveRadius * 1.1) {
+    } else if (dist > effectiveRadius * 1.15) {
       continentalValue = 0.0;
     } else {
-      const t = (dist - effectiveRadius * 0.7) / (effectiveRadius * 0.4);
+      const t = (dist - effectiveRadius * 0.65) / (effectiveRadius * 0.5);
       continentalValue = 1.0 - smoothstepClamp(t);
+    }
+
+    // Fjord incisions: narrow cuts into coastline
+    const fjordVal = fjordNoise(worldX * fjordFreq, worldZ * fjordFreq);
+    if (fjordVal > 0.6 && continentalValue > 0.3 && continentalValue < 0.8) {
+      const fjordStrength = (fjordVal - 0.6) / 0.4;
+      continentalValue -= fjordStrength * 0.45;
+    }
+
+    // Island chains beyond the main continent
+    if (continentalValue < 0.3) {
+      const islandVal = islandNoise(worldX * islandFreq, worldZ * islandFreq);
+      if (islandVal > 0.55) {
+        const islandStrength = (islandVal - 0.55) / 0.45;
+        const distFade = Math.max(0, 1 - (dist - effectiveRadius * 1.1) / (HALF_WORLD * 0.4));
+        continentalValue = Math.max(continentalValue, islandStrength * 0.7 * distFade);
+      }
     }
 
     const detail = detailNoise(worldX * detailFreq, worldZ * detailFreq) * 0.08;
