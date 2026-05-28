@@ -32,10 +32,13 @@ import type { StreamingManager } from '../streaming/StreamingManager';
 import { setupInspectorToggle } from '../debug/inspectorToggle';
 import { getClientWorld, disposeClientWorld } from '../ecs/clientWorld';
 import { interpolationSystem } from '../ecs/systems/interpolationSystem';
+import { createAmbientParticles } from '../world/createAmbientParticles';
 
 export class GameApp {
   private engine!: Engine;
   private scene!: Scene;
+  getScene() { return this.scene; }
+  getEngine() { return this.engine; }
   private quality!: QualitySettings;
   private sceneResult!: SceneBuildResult;
   private atmosphereEngine: AtmosphereEngine | null = null;
@@ -51,12 +54,12 @@ export class GameApp {
   private audio!: AudioManager;
   private hud!: GameHud;
   private devPanel!: DevPanel;
-  private minimap!: Minimap;
+  private minimap: Minimap | null = null;
   private mainMenu!: MainMenu;
   private pauseMenu!: PauseMenu;
   private settingsPanel!: SettingsPanel;
   private loadingScreen!: LoadingScreen;
-  private worldMap!: WorldMap;
+  private worldMap: WorldMap | null = null;
   private playerName: string;
   private characterId: string | null;
   private userId: string | null;
@@ -73,7 +76,7 @@ export class GameApp {
     this.playerName = params.get('name') || ENV.defaultPlayerName;
     this.characterId = params.get('characterId');
     this.userId = params.get('userId');
-    this.characterWeapon = params.get('weapon') || 'blade';
+    this.characterWeapon = params.get('weapon') || 'arming_sword';
     this.characterMemory = params.get('memory') || 'ember';
     this.characterLevel = parseInt(params.get('level') || '1', 10) || 1;
     this.characterRace = params.get('race') || 'dracor';
@@ -125,7 +128,7 @@ export class GameApp {
 
     console.log('[GameApp] Creating player...');
     const spawn = { x: 0, y: 0, z: 10 };
-    this.playerController = new PlayerController(
+    this.playerController = await PlayerController.create(
       this.scene,
       spawn.x,
       spawn.y,
@@ -138,6 +141,8 @@ export class GameApp {
       }
     );
 
+    createAmbientParticles(this.scene, this.playerController.getMesh());
+
     console.log('[GameApp] Creating camera...');
     this.cameraController = new CameraController(
       this.scene,
@@ -148,6 +153,7 @@ export class GameApp {
     this.loadingScreen.updateStatus('Preparing interface...');
     this.loadingScreen.updateProgress(80);
 
+    console.log('[GameApp] Creating HUD...');
     this.hud = createGameHud();
     this.hud.setPlayerName(this.playerName);
     this.hud.setZoneName('Ironvale Outskirts');
@@ -157,7 +163,8 @@ export class GameApp {
     this.devPanel.setQualityTier(tier);
     this.minimap = createMinimap();
     this.worldMap = createWorldMap();
-    this.minimap.onClick(() => this.worldMap.toggle());
+    this.minimap.onClick(() => this.worldMap?.toggle());
+    console.log('[GameApp] Maps ready');
     this.chatController = new ChatController();
 
     this.multiplayerClient = new MultiplayerClient();
@@ -207,6 +214,7 @@ export class GameApp {
     window.addEventListener('resize', this.handleResize);
 
     this.loadingScreen.updateProgress(100);
+    console.log('[GameApp] Hiding loading screen...');
     this.loadingScreen.hide();
 
     this.mainMenu = createMainMenu(this.playerName, {
@@ -215,6 +223,7 @@ export class GameApp {
     });
 
     this.applySettings(this.settings.get());
+    this.enterWorld();
   }
 
   private enterWorld(): void {
@@ -253,7 +262,13 @@ export class GameApp {
 
     if (this.atmosphereEngine && this.atmosphereRenderer) {
       this.atmosphereEngine.update(dt);
-      this.atmosphereRenderer.update(this.atmosphereEngine.getState());
+      const state = this.atmosphereEngine.getState();
+      this.atmosphereRenderer.update(state);
+
+      const enhancers = (this.scene as any).__enhancers as Array<{ update?(s: any, d: number): void }> | undefined;
+      if (enhancers) {
+        for (const e of enhancers) e.update?.(state, dt);
+      }
     }
     this.sceneResult.updateWind(dt);
 
@@ -276,10 +291,14 @@ export class GameApp {
 
     const pos = this.playerController.getPosition();
     const yaw = this.playerController.getYaw();
-    this.minimap.updatePlayerPosition(pos.x, pos.z, yaw);
-    this.minimap.updateRemotePlayers(this.multiplayerClient.getRemotePlayerPositions());
-    this.worldMap.updatePlayerPosition(pos.x, pos.z, yaw);
-    this.worldMap.updateRemotePlayers(this.multiplayerClient.getRemotePlayerPositions());
+    if (this.minimap) {
+      this.minimap.updatePlayerPosition(pos.x, pos.z, yaw);
+      this.minimap.updateRemotePlayers(this.multiplayerClient.getRemotePlayerPositions());
+    }
+    if (this.worldMap) {
+      this.worldMap.updatePlayerPosition(pos.x, pos.z, yaw);
+      this.worldMap.updateRemotePlayers(this.multiplayerClient.getRemotePlayerPositions());
+    }
   }
 
   private async connectToServer(): Promise<void> {
