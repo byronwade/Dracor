@@ -22,7 +22,7 @@ export interface RegionDefinition {
 export interface PointOfInterest {
   id: string;
   name: string;
-  type: 'town' | 'dungeon' | 'shrine' | 'ruin' | 'camp' | 'tower' | 'cave' | 'bridge' | 'crossroads';
+  type: 'town' | 'city' | 'village' | 'fortress' | 'port' | 'mine' | 'dungeon' | 'shrine' | 'ruin' | 'camp' | 'tower' | 'cave' | 'bridge' | 'crossroads';
   worldX: number;
   worldZ: number;
   regionId: string;
@@ -188,6 +188,26 @@ const POI_NAME_PARTS: Record<string, { prefixes: string[]; suffixes: string[] }>
     prefixes: ['The', 'The', 'The', 'Wanderer\'s', 'Traveler\'s', 'Merchant\'s', 'Pilgrim\'s', 'Old'],
     suffixes: ['Crossroads', 'Junction', 'Crossroads', 'Fork', 'Crossing', 'Waypoint', 'Confluence', 'Meeting'],
   },
+  city: {
+    prefixes: ['Ironhold', 'Crownsgate', 'Highwall', 'Stormhaven', 'Dragonport', 'Kingsreach', 'Ashenmire', 'Sunspire', 'Blackmoor', 'Goleli'],
+    suffixes: ['', '', 'City', 'Citadel', 'Capital', 'Metropolis', 'Hold', 'Dominion'],
+  },
+  village: {
+    prefixes: ['Millbrook', 'Thornfield', 'Redhollow', 'Oakrest', 'Ashfen', 'Pebblebrook', 'Dustwick', 'Ferndale', 'Greyholm', 'Willowmere'],
+    suffixes: ['', '', 'Village', 'Hamlet', 'Steading', 'Homestead', 'Dale', 'Glen'],
+  },
+  fortress: {
+    prefixes: ['Fort', 'Castle', 'Bastion', 'Citadel', 'Stronghold of', 'The Keep of', 'Rampart of', 'The Hold of'],
+    suffixes: ['Iron', 'Stone', 'the Warden', 'the North', 'the Mountain', 'the Last Watch', 'the Fallen', 'the Storm'],
+  },
+  port: {
+    prefixes: ['Harborview', 'Saltwind', 'Tidegate', 'Anchorfall', 'Wavebreak', 'Driftwood', 'Seawall', 'Stormquay'],
+    suffixes: ['', '', 'Port', 'Harbor', 'Dock', 'Landing', 'Quay', 'Anchorage'],
+  },
+  mine: {
+    prefixes: ['The', 'Old', 'Deep', 'Lost', 'Iron', 'Gold', 'Silver', 'Dark'],
+    suffixes: ['Mine', 'Quarry', 'Dig', 'Shaft', 'Excavation', 'Vein', 'Lode', 'Pit'],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -246,8 +266,8 @@ export function createRegionSystem(
   //    We partition the landmass into a grid and place one seed per cell
   //    so regions are spread evenly rather than randomly clustered.
   // -------------------------------------------------------------------
-  const GRID_COLS = 5;
-  const GRID_ROWS = 4;
+  const GRID_COLS = 7;
+  const GRID_ROWS = 6;
   const CELL_W = (HALF_WORLD * 2 * 0.85) / GRID_COLS; // use 85% of world diameter
   const CELL_H = (HALF_WORLD * 2 * 0.85) / GRID_ROWS;
   const ORIGIN_X = -HALF_WORLD * 0.85;
@@ -356,7 +376,7 @@ export function createRegionSystem(
       ? new SeededRNG(hashCombine(structureSeed, simpleHash(region.id)))
       : poiRng.fork(simpleHash(region.name));
 
-    const poiCount = regionPoiRng.nextInt(3, 8);
+    const poiCount = regionPoiRng.nextInt(5, 14);
     const poiTypes: PointOfInterest['type'][] = selectPoiTypesForRegion(region, regionPoiRng, poiCount);
 
     for (let p = 0; p < poiCount; p++) {
@@ -445,38 +465,46 @@ function selectPoiTypesForRegion(
   rng: SeededRNG,
   count: number,
 ): PointOfInterest['type'][] {
-  const all: PointOfInterest['type'][] = ['town', 'dungeon', 'shrine', 'ruin', 'camp', 'tower', 'cave', 'bridge', 'crossroads'];
+  const all: PointOfInterest['type'][] = [
+    'town', 'city', 'village', 'fortress', 'port', 'mine',
+    'dungeon', 'shrine', 'ruin', 'camp', 'tower', 'cave', 'bridge', 'crossroads',
+  ];
 
-  // Weight certain types by biome
   const weighted: PointOfInterest['type'][] = [...all];
   const biome = region.dominantBiome;
 
-  // Always include at least one town in starter zones
   if (region.isStarterZone) {
-    weighted.push('town', 'town', 'shrine', 'crossroads');
+    weighted.push('city', 'city', 'village', 'village', 'shrine', 'crossroads');
   }
-
-  // Thematic bias
+  if (biome === 'beach' || biome === 'tropical_beach') {
+    weighted.push('port', 'port', 'port', 'village', 'town');
+  }
   if (biome === 'forest' || biome === 'dense_forest' || biome === 'pine_forest') {
-    weighted.push('camp', 'shrine', 'ruin', 'cave');
+    weighted.push('village', 'village', 'camp', 'shrine', 'ruin', 'cave');
   }
   if (biome === 'mountain' || biome === 'snowy_peaks' || biome === 'alpine_meadow') {
-    weighted.push('tower', 'cave', 'ruin', 'shrine');
+    weighted.push('fortress', 'fortress', 'mine', 'tower', 'cave', 'ruin');
   }
   if (biome === 'desert' || biome === 'badlands') {
-    weighted.push('ruin', 'ruin', 'cave', 'camp');
+    weighted.push('ruin', 'ruin', 'ruin', 'cave', 'camp', 'mine');
   }
   if (biome === 'swamp' || biome === 'wetlands') {
-    weighted.push('dungeon', 'ruin', 'camp', 'shrine');
+    weighted.push('dungeon', 'ruin', 'camp', 'shrine', 'village');
   }
   if (biome === 'volcanic') {
-    weighted.push('dungeon', 'dungeon', 'ruin', 'shrine');
+    weighted.push('mine', 'mine', 'dungeon', 'dungeon', 'ruin', 'fortress');
   }
   if (biome === 'plains' || biome === 'grassland') {
-    weighted.push('town', 'crossroads', 'camp', 'shrine');
+    weighted.push('city', 'town', 'village', 'village', 'crossroads', 'crossroads');
+  }
+  if (biome === 'river_valley') {
+    weighted.push('town', 'town', 'village', 'bridge', 'bridge', 'port');
   }
   if (biome === 'jungle') {
-    weighted.push('ruin', 'shrine', 'camp', 'cave');
+    weighted.push('ruin', 'ruin', 'shrine', 'shrine', 'camp', 'cave');
+  }
+  if (biome === 'savanna') {
+    weighted.push('village', 'village', 'camp', 'camp', 'crossroads');
   }
 
   const selected: PointOfInterest['type'][] = [];
@@ -484,7 +512,6 @@ function selectPoiTypesForRegion(
   for (let i = 0; i < count && available.length > 0; i++) {
     const idx = rng.nextInt(0, available.length - 1);
     selected.push(available[idx]);
-    // Remove from available to avoid exact repeats (allow some duplication if pool exhausted)
     if (available.length > count) available.splice(idx, 1);
   }
 
@@ -525,6 +552,24 @@ function refinePlacement(
     if (eDown < e) return px;
   }
 
+  if (type === 'fortress') {
+    const step = rng.nextFloat(40, 100);
+    const eRight = getElevation(px + step, pz);
+    if (eRight > e) return px + step * 0.5;
+  }
+
+  if (type === 'village' || type === 'city' || type === 'port') {
+    const step = rng.nextFloat(30, 80);
+    const eLeft = getElevation(px - step, pz);
+    if (eLeft < e) return px - step * 0.5;
+  }
+
+  if (type === 'mine') {
+    const step = rng.nextFloat(20, 60);
+    const eUp = getElevation(px + step, pz);
+    if (eUp > e && eUp > 40) return px + step * 0.4;
+  }
+
   return px;
 }
 
@@ -546,6 +591,18 @@ function refinePlacementZ(
 
   if (type === 'camp' || type === 'crossroads' || type === 'bridge') {
     const step = rng.nextFloat(20, 60);
+    const eBwd = getElevation(px, pz - step);
+    if (eBwd < e) return pz - step * 0.5;
+  }
+
+  if (type === 'fortress') {
+    const step = rng.nextFloat(40, 100);
+    const eFwd = getElevation(px, pz + step);
+    if (eFwd > e) return pz + step * 0.5;
+  }
+
+  if (type === 'village' || type === 'city' || type === 'port') {
+    const step = rng.nextFloat(30, 80);
     const eBwd = getElevation(px, pz - step);
     if (eBwd < e) return pz - step * 0.5;
   }
