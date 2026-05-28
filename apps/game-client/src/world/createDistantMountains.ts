@@ -3,62 +3,103 @@ import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
+import '@babylonjs/core/Meshes/Builders/groundBuilder';
 
-/**
- * Create large dark mountain silhouettes at the far edges of the zone.
- * Uses tapered cylinders (cone-like) to approximate mountain peaks.
- */
-export function createDistantMountains(scene: Scene, getHeightAt?: (x: number, z: number) => number): void {
-  const mountainMat = new StandardMaterial('mountainMat', scene);
-  mountainMat.diffuseColor = new Color3(0.04, 0.04, 0.06); // Very dark blue-black
-  mountainMat.specularColor = Color3.Black();
-  mountainMat.emissiveColor = new Color3(0.01, 0.01, 0.02); // Tiny hint so silhouette shows against sky
-  mountainMat.disableLighting = true;
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return s / 2147483647;
+  };
+}
 
-  // Slightly lighter for the distant fog-blended feel
-  const farMountainMat = new StandardMaterial('farMountainMat', scene);
-  farMountainMat.diffuseColor = new Color3(0.06, 0.06, 0.08);
-  farMountainMat.specularColor = Color3.Black();
-  farMountainMat.emissiveColor = new Color3(0.02, 0.02, 0.03);
-  farMountainMat.disableLighting = true;
+export function createDistantMountains(scene: Scene): TransformNode {
+  const root = new TransformNode('distantMountains', scene);
 
-  const mountains = [
-    // North mountains
-    { x: -120, z: -280, height: 80, baseW: 120, mat: mountainMat },
-    { x: 40, z: -300, height: 110, baseW: 140, mat: mountainMat },
-    { x: 180, z: -260, height: 70, baseW: 100, mat: mountainMat },
-    // East mountains
-    { x: 300, z: -60, height: 90, baseW: 130, mat: farMountainMat },
-    { x: 280, z: 100, height: 65, baseW: 110, mat: farMountainMat },
-    // West mountains
-    { x: -300, z: 50, height: 100, baseW: 150, mat: mountainMat },
-    { x: -270, z: -120, height: 75, baseW: 120, mat: mountainMat },
-    // Background layering (farther, taller)
-    { x: -50, z: -350, height: 140, baseW: 200, mat: farMountainMat },
-    { x: 100, z: -370, height: 120, baseW: 180, mat: farMountainMat },
-  ];
+  const mountainMat = new StandardMaterial('distMountainMat', scene);
+  mountainMat.diffuseColor = new Color3(0.12, 0.13, 0.18);
+  mountainMat.specularColor = new Color3(0, 0, 0);
+  mountainMat.emissiveColor = new Color3(0.04, 0.05, 0.08);
 
-  for (let i = 0; i < mountains.length; i++) {
-    const m = mountains[i];
-    const mountain = MeshBuilder.CreateCylinder(
-      `mountain_${i}`,
-      {
+  const snowMat = new StandardMaterial('distSnowMat', scene);
+  snowMat.diffuseColor = new Color3(0.35, 0.38, 0.45);
+  snowMat.specularColor = new Color3(0, 0, 0);
+  snowMat.emissiveColor = new Color3(0.12, 0.13, 0.18);
+
+  const rand = seededRandom(42);
+  const mountainCount = 36;
+  const ringRadius = 900;
+
+  for (let i = 0; i < mountainCount; i++) {
+    const angle = (i / mountainCount) * Math.PI * 2 + (rand() - 0.5) * 0.15;
+    const dist = ringRadius + rand() * 200;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+
+    const height = 80 + rand() * 200;
+    const baseRadius = 60 + rand() * 80;
+
+    // Main peak
+    const peak = MeshBuilder.CreateCylinder(`distPeak_${i}`, {
+      diameterTop: 0,
+      diameterBottom: baseRadius * 2,
+      height: height,
+      tessellation: 5 + Math.floor(rand() * 3),
+    }, scene);
+    peak.position = new Vector3(x, height * 0.5 - 20, z);
+    peak.scaling.x = 0.8 + rand() * 0.4;
+    peak.scaling.z = 0.8 + rand() * 0.4;
+    peak.rotation.y = rand() * Math.PI * 2;
+    peak.material = mountainMat;
+    peak.isPickable = false;
+    peak.parent = root;
+
+    // Snow cap on tall peaks
+    if (height > 160) {
+      const capHeight = height * 0.3;
+      const capRadius = baseRadius * 0.4;
+      const cap = MeshBuilder.CreateCylinder(`distCap_${i}`, {
         diameterTop: 0,
-        diameterBottom: m.baseW,
-        height: m.height,
-        tessellation: 6, // Low-poly silhouette feel
-      },
-      scene
-    );
-    const baseY = getHeightAt ? getHeightAt(m.x, m.z) : 0;
-    mountain.position = new Vector3(m.x, baseY + m.height * 0.35, m.z);
-    mountain.material = m.mat;
-    mountain.isPickable = false;
-    mountain.applyFog = false; // Silhouettes should stay visible through fog
+        diameterBottom: capRadius * 2,
+        height: capHeight,
+        tessellation: 5,
+      }, scene);
+      cap.position = new Vector3(x, height - capHeight * 0.5 - 20, z);
+      cap.scaling.x = peak.scaling.x;
+      cap.scaling.z = peak.scaling.z;
+      cap.rotation.y = peak.rotation.y;
+      cap.material = snowMat;
+      cap.isPickable = false;
+      cap.parent = root;
+    }
 
-    // Slight random asymmetry
-    mountain.scaling.x = 0.8 + Math.random() * 0.4;
-    mountain.scaling.z = 0.8 + Math.random() * 0.4;
+    // Secondary smaller peak nearby (50% chance)
+    if (rand() > 0.5) {
+      const subAngle = angle + (rand() - 0.5) * 0.12;
+      const subDist = dist + (rand() - 0.5) * 80;
+      const subX = Math.cos(subAngle) * subDist;
+      const subZ = Math.sin(subAngle) * subDist;
+      const subHeight = height * (0.4 + rand() * 0.3);
+      const subRadius = baseRadius * (0.5 + rand() * 0.3);
+
+      const sub = MeshBuilder.CreateCylinder(`distSub_${i}`, {
+        diameterTop: 0,
+        diameterBottom: subRadius * 2,
+        height: subHeight,
+        tessellation: 4 + Math.floor(rand() * 2),
+      }, scene);
+      sub.position = new Vector3(subX, subHeight * 0.5 - 20, subZ);
+      sub.scaling.x = 0.8 + rand() * 0.4;
+      sub.scaling.z = 0.8 + rand() * 0.4;
+      sub.rotation.y = rand() * Math.PI * 2;
+      sub.material = mountainMat;
+      sub.isPickable = false;
+      sub.parent = root;
+    }
   }
+
+  return root;
 }

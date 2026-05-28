@@ -1,12 +1,14 @@
 import { Scene } from '@babylonjs/core/scene';
 import { Engine } from '@babylonjs/core/Engines/engine';
-import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
-import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
+import HavokPhysics from '@babylonjs/havok';
+import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import '@babylonjs/core/Rendering/depthRendererSceneComponent';
+import '@babylonjs/core/Physics/physicsEngineComponent';
+import '@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent';
 import '@babylonjs/core/Meshes/Builders/groundBuilder';
 import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
@@ -14,6 +16,8 @@ import '@babylonjs/core/Meshes/Builders/boxBuilder';
 import '@babylonjs/core/Meshes/Builders/planeBuilder';
 
 import { StreamingManager, type StreamingSceneResult } from '../streaming/StreamingManager';
+import { createSky } from '../world/createSky';
+import { createDistantMountains } from '../world/createDistantMountains';
 
 // ─── Locally-embedded types (from workspace packages, not imported at runtime) ───
 
@@ -160,40 +164,6 @@ export interface ZoneManifest {
   performanceTier: string;
 }
 
-export interface LightingPreset {
-  ambientColor: [number, number, number];
-  sunColor: [number, number, number];
-  sunDirection: [number, number, number];
-  sunIntensity: number;
-  ambientIntensity: number;
-}
-
-export interface FogPreset {
-  mode: 'exp' | 'exp2' | 'linear';
-  density: number;
-  color: [number, number, number];
-}
-
-// ─── Embedded presets ───
-
-const LIGHTING: Record<string, LightingPreset> = {
-  ironvale_dusk: {
-    ambientColor: [0.15, 0.1, 0.08],
-    sunColor: [1.0, 0.7, 0.35],
-    sunDirection: [-0.6, -0.3, -0.75],
-    sunIntensity: 1.8,
-    ambientIntensity: 0.4,
-  },
-};
-
-const FOG: Record<string, FogPreset> = {
-  ironvale_mist: {
-    mode: 'exp2',
-    density: 0.012,
-    color: [0.3, 0.32, 0.38],
-  },
-};
-
 // ─── Quality presets ───
 
 const QUALITY_PRESETS: Record<QualityTier, QualitySettings> = {
@@ -319,8 +289,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'fir_sapling_a',
       modelFile: 'fir_sapling_medium_4k.glb',
       modelVariant: '_a_',
-      count: 500,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 80,
+      area: { centerX: 0, centerZ: 0, radius: 250 },
       minScale: 0.8,
       maxScale: 1.6,
       density: 0.5,
@@ -336,8 +306,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'fir_sapling_b',
       modelFile: 'fir_sapling_medium_4k.glb',
       modelVariant: '_b_',
-      count: 400,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 60,
+      area: { centerX: 0, centerZ: 0, radius: 250 },
       minScale: 0.7,
       maxScale: 1.4,
       density: 0.4,
@@ -353,8 +323,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'fir_sapling_c',
       modelFile: 'fir_sapling_medium_4k.glb',
       modelVariant: '_c_',
-      count: 300,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 50,
+      area: { centerX: 0, centerZ: 0, radius: 250 },
       minScale: 0.9,
       maxScale: 1.5,
       density: 0.3,
@@ -370,8 +340,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'grass_tall_a',
       modelFile: 'grass_medium_01_4k.glb',
       modelVariant: 'tall_a',
-      count: 2000,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 300,
+      area: { centerX: 0, centerZ: 0, radius: 200 },
       minScale: 4.0,
       maxScale: 7.0,
       density: 2.0,
@@ -387,8 +357,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'grass_tall_b',
       modelFile: 'grass_medium_01_4k.glb',
       modelVariant: 'tall_b',
-      count: 1500,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 200,
+      area: { centerX: 0, centerZ: 0, radius: 200 },
       minScale: 3.5,
       maxScale: 6.0,
       density: 1.5,
@@ -404,8 +374,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'grass_large_a',
       modelFile: 'grass_medium_01_4k.glb',
       modelVariant: 'large_a',
-      count: 1200,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 150,
+      area: { centerX: 0, centerZ: 0, radius: 200 },
       minScale: 3.0,
       maxScale: 5.5,
       density: 1.2,
@@ -421,8 +391,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'grass_mid_a',
       modelFile: 'grass_medium_01_4k.glb',
       modelVariant: 'mid_a',
-      count: 2500,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 300,
+      area: { centerX: 0, centerZ: 0, radius: 200 },
       minScale: 2.5,
       maxScale: 4.5,
       density: 2.5,
@@ -438,8 +408,8 @@ const IRONVALE_OUTSKIRTS: ZoneManifest = {
       modelId: 'grass_small_a',
       modelFile: 'grass_medium_01_4k.glb',
       modelVariant: 'small_a',
-      count: 3000,
-      area: { centerX: 0, centerZ: 0, radius: 400 },
+      count: 400,
+      area: { centerX: 0, centerZ: 0, radius: 200 },
       minScale: 2.0,
       maxScale: 3.5,
       density: 3.0,
@@ -583,10 +553,47 @@ export async function buildIronvaleOutskirtsScene(
   engine: Engine,
   quality: QualitySettings
 ): Promise<IronvaleSceneResult> {
+  console.log('[Scene] Creating scene...');
   const scene = new Scene(engine);
-  scene.clearColor = new Color4(0.45, 0.55, 0.70, 1.0);
-  scene.ambientColor = new Color3(0.2, 0.2, 0.25);
+  scene.clearColor = new Color4(0.25, 0.3, 0.45, 1.0);
+  scene.ambientColor = new Color3(0.3, 0.3, 0.35);
+  scene.fogMode = Scene.FOGMODE_LINEAR;
+  scene.fogStart = 150;
+  scene.fogEnd = 350;
+  scene.fogColor = new Color3(0.35, 0.38, 0.45);
 
+  const { HemisphericLight } = await import('@babylonjs/core/Lights/hemisphericLight');
+  const { DirectionalLight } = await import('@babylonjs/core/Lights/directionalLight');
+
+  const ambient = new HemisphericLight('ambient', new Vector3(0, 1, 0), scene);
+  ambient.intensity = 0.6;
+  ambient.diffuse = new Color3(0.6, 0.65, 0.75);
+  ambient.groundColor = new Color3(0.15, 0.12, 0.1);
+
+  const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, -0.5).normalize(), scene);
+  sun.intensity = 1.2;
+  sun.diffuse = new Color3(1.0, 0.9, 0.75);
+
+  console.log('[Scene] Lights ready');
+
+  // Deferred enhancers — load after first frame so game starts fast
+  scene.onAfterRenderObservable.addOnce(async () => {
+    try {
+      const { runEnhancers, SkyEnhancer, HDREnvEnhancer, ShadowsEnhancer, PostProcessEnhancer } = await import('./enhancers');
+      const enhancers = await runEnhancers({ scene, quality }, [
+        new SkyEnhancer(),
+        new HDREnvEnhancer(),
+        new ShadowsEnhancer(),
+        new PostProcessEnhancer(),
+      ]);
+      (scene as any).__enhancers = enhancers;
+      console.log(`[Scene] ${enhancers.length} enhancers active`);
+    } catch (err) {
+      console.warn('[Scene] Enhancers failed:', err);
+    }
+  });
+
+  console.log('[Scene] Creating atmosphere...');
   const atmosphereEngine = createAtmosphereEngine({
     initialTime: 0.38,
     dayLengthMinutes: 20,
@@ -596,20 +603,26 @@ export async function buildIronvaleOutskirtsScene(
 
   const atmosphereRenderer = new BabylonAtmosphereRenderer(scene);
   atmosphereRenderer.update(atmosphereEngine.getState());
+  console.log('[Scene] Atmosphere ready');
 
+  console.log('[Scene] Creating sky dome...');
+  createSky(scene);
+  console.log('[Scene] Sky dome ready');
+
+  console.log('[Scene] Creating streaming manager...');
   const streamingManager = new StreamingManager(scene, quality, IRONVALE_OUTSKIRTS);
+  console.log('[Scene] Streaming manager created');
+
   const spawnPos = new Vector3(
     IRONVALE_OUTSKIRTS.playerSpawn.x,
     IRONVALE_OUTSKIRTS.playerSpawn.y,
     IRONVALE_OUTSKIRTS.playerSpawn.z
   );
   const streamResult = await streamingManager.loadInitialArea(spawnPos);
+  console.log('[Scene] Initial terrain loaded');
 
-  createTownLights(scene, streamResult.getHeightAt);
-
-  if (quality.postProcessingEnabled) {
-    setupPostProcessing(scene, quality);
-  }
+  createDistantMountains(scene);
+  console.log('[Scene] Distant mountains created');
 
   return {
     scene,
@@ -645,45 +658,50 @@ function createTownLights(scene: Scene, getHeightAt: (x: number, z: number) => n
 }
 
 function setupPostProcessing(scene: Scene, quality: QualitySettings): void {
-  scene.onActiveCameraChanged.addOnce(() => {
+  scene.onAfterRenderObservable.addOnce(() => {
     const camera = scene.activeCamera;
     if (!camera) return;
 
-    const pipeline = new DefaultRenderingPipeline(
-      'defaultPipeline',
-      true,
-      scene,
-      [camera]
-    );
+    try {
+      const pipeline = new DefaultRenderingPipeline(
+        'defaultPipeline',
+        true,
+        scene,
+        [camera]
+      );
 
-    pipeline.bloomEnabled = quality.bloomEnabled;
-    if (quality.bloomEnabled) {
-      pipeline.bloomThreshold = 0.8;
-      pipeline.bloomWeight = 0.15;
-      pipeline.bloomKernel = 64;
+      pipeline.bloomEnabled = quality.bloomEnabled;
+      if (quality.bloomEnabled) {
+        pipeline.bloomThreshold = 0.8;
+        pipeline.bloomWeight = 0.15;
+        pipeline.bloomKernel = 64;
+      }
+
+      pipeline.imageProcessingEnabled = true;
+      pipeline.imageProcessing.toneMappingEnabled = true;
+      pipeline.imageProcessing.toneMappingType = 2;
+      pipeline.imageProcessing.exposure = 0.9;
+      pipeline.imageProcessing.contrast = 1.2;
+
+      pipeline.imageProcessing.vignetteEnabled = true;
+      pipeline.imageProcessing.vignetteWeight = 2.5;
+      pipeline.imageProcessing.vignetteCameraFov = 0.6;
+
+      pipeline.depthOfFieldEnabled = false;
+
+      pipeline.grainEnabled = true;
+      pipeline.grain.intensity = 4;
+      pipeline.grain.animated = true;
+
+      pipeline.chromaticAberrationEnabled = quality.tier === 'ultra';
+      if (pipeline.chromaticAberrationEnabled) {
+        pipeline.chromaticAberration.aberrationAmount = 8;
+        pipeline.chromaticAberration.radialIntensity = 0.3;
+      }
+
+      console.log('[PostProcess] Rendering pipeline configured');
+    } catch (err) {
+      console.warn('[PostProcess] Failed to create rendering pipeline:', err);
     }
-
-    pipeline.imageProcessingEnabled = true;
-    pipeline.imageProcessing.toneMappingEnabled = true;
-    pipeline.imageProcessing.toneMappingType = 2;
-    pipeline.imageProcessing.exposure = 0.9;
-    pipeline.imageProcessing.contrast = 1.2;
-
-    pipeline.imageProcessing.vignetteEnabled = true;
-    pipeline.imageProcessing.vignetteWeight = 2.5;
-    pipeline.imageProcessing.vignetteCameraFov = 0.6;
-
-    pipeline.depthOfFieldEnabled = false;
-
-    pipeline.grainEnabled = true;
-    pipeline.grain.intensity = 4;
-    pipeline.grain.animated = true;
-
-    pipeline.chromaticAberrationEnabled = quality.tier === 'ultra';
-    if (pipeline.chromaticAberrationEnabled) {
-      pipeline.chromaticAberration.aberrationAmount = 8;
-      pipeline.chromaticAberration.radialIntensity = 0.3;
-    }
-
   });
 }
