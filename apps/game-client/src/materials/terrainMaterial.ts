@@ -100,6 +100,26 @@ void main() {
   // Apply biome vertex color tint
   baseColor.rgb *= vColor.rgb * 2.5;
 
+  // Snow on high peaks
+  float snowLine = smoothstep(160.0, 220.0, vWorldPos.y);
+  float snowNoise = triplanar(grassTex, vWorldPos, n, scale * 3.0).r;
+  float snowMask = snowLine * smoothstep(0.3, 0.8, abs(n.y)) * (0.7 + snowNoise * 0.3);
+  vec3 snowColor = vec3(0.92, 0.94, 0.98);
+  baseColor.rgb = mix(baseColor.rgb, snowColor, snowMask);
+
+  // Volcanic lava glow in deep areas
+  float lavaDepth = smoothstep(-10.0, -40.0, vWorldPos.y);
+  float lavaPattern = triplanar(rockTex, vWorldPos, n, scale * 0.5).r;
+  float lavaMask = lavaDepth * step(0.3, lavaPattern);
+  vec3 lavaColor = mix(vec3(0.8, 0.2, 0.0), vec3(1.0, 0.6, 0.0), lavaPattern);
+  baseColor.rgb = mix(baseColor.rgb, lavaColor, lavaMask * 0.8);
+
+  // Desert sand tint on flat, warm-colored biome areas
+  float sandIndicator = smoothstep(0.45, 0.65, vColor.r) * smoothstep(0.2, 0.0, vColor.b);
+  float sandFlat = smoothstep(10.0, 3.0, slopeAngle);
+  vec3 sandColor = vec3(0.78, 0.68, 0.45);
+  baseColor.rgb = mix(baseColor.rgb, sandColor * triplanar(dirtTex, vWorldPos, n, scale * 1.5).rgb * 1.8, sandIndicator * sandFlat * 0.6);
+
   // Normal mapping
   vec3 grassN = triplanarNorm(grassNorm, vWorldPos, n, scale);
   vec3 rockN = triplanarNorm(rockNorm, vWorldPos, n, scale);
@@ -112,9 +132,9 @@ void main() {
 
   // Simple directional lighting
   float NdotL = max(dot(blendedNormal, normalize(sunDir)), 0.0);
-  float ambient = 0.35;
-  float diffuse = NdotL * 0.65;
-  vec3 lit = baseColor.rgb * (ambient + diffuse);
+  vec3 ambientColor = mix(vec3(0.22, 0.25, 0.35), vec3(0.35, 0.33, 0.28), max(0.0, n.y));
+  float diffuse = NdotL * 0.7;
+  vec3 lit = baseColor.rgb * (ambientColor + vec3(diffuse));
 
   // Subtle distance fog
   float dist = length(vWorldPos);
