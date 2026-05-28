@@ -51,6 +51,21 @@ varying vec3 vWorldNormal;
 varying vec4 vColor;
 varying float vSlope;
 
+float hash2D(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float valueNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash2D(i), hash2D(i + vec2(1.0, 0.0)), f.x),
+    mix(hash2D(i + vec2(0.0, 1.0)), hash2D(i + vec2(1.0, 1.0)), f.x),
+    f.y
+  );
+}
+
 vec4 triplanar(sampler2D tex, vec3 wp, vec3 n, float scale) {
   vec3 blend = abs(n);
   blend = pow(blend, vec3(4.0));
@@ -91,6 +106,13 @@ void main() {
   // Detail layer at close range (forest floor)
   vec4 detailC = triplanar(forestTex, vWorldPos, n, detailScale);
 
+  // Break up tiling repetition with multi-scale noise
+  float tilingBreak = valueNoise(vWorldPos.xz * 0.01) * 0.3 + 0.85;
+  float microVariation = valueNoise(vWorldPos.xz * 0.05) * 0.15 + 0.92;
+  grassC.rgb *= tilingBreak * microVariation;
+  rockC.rgb *= (tilingBreak * 0.7 + 0.3) * microVariation;
+  dirtC.rgb *= tilingBreak * (microVariation * 0.8 + 0.2);
+
   // Blend by slope
   vec4 baseColor = grassC * grassW + dirtC * dirtW + rockC * rockW;
 
@@ -120,6 +142,12 @@ void main() {
   vec3 sandColor = vec3(0.78, 0.68, 0.45);
   baseColor.rgb = mix(baseColor.rgb, sandColor * triplanar(dirtTex, vWorldPos, n, scale * 1.5).rgb * 1.8, sandIndicator * sandFlat * 0.6);
 
+  // Height-based color richness
+  float heightFactor = smoothstep(-20.0, 100.0, vWorldPos.y);
+  float valleyDarken = smoothstep(5.0, -15.0, vWorldPos.y) * 0.3;
+  baseColor.rgb *= (0.85 + heightFactor * 0.15);
+  baseColor.rgb *= (1.0 - valleyDarken);
+
   // Normal mapping
   vec3 grassN = triplanarNorm(grassNorm, vWorldPos, n, scale);
   vec3 rockN = triplanarNorm(rockNorm, vWorldPos, n, scale);
@@ -132,9 +160,11 @@ void main() {
 
   // Simple directional lighting
   float NdotL = max(dot(blendedNormal, normalize(sunDir)), 0.0);
-  vec3 ambientColor = mix(vec3(0.22, 0.25, 0.35), vec3(0.35, 0.33, 0.28), max(0.0, n.y));
+  vec3 ambientColor = mix(vec3(0.18, 0.2, 0.3), vec3(0.32, 0.3, 0.25), max(0.0, blendedNormal.y));
   float diffuse = NdotL * 0.7;
-  vec3 lit = baseColor.rgb * (ambientColor + vec3(diffuse));
+  float backLight = max(0.0, dot(blendedNormal, normalize(-sunDir + vec3(0.0, 0.5, 0.0)))) * 0.12;
+  float ao = 0.85 + 0.15 * abs(blendedNormal.y);
+  vec3 lit = baseColor.rgb * (ambientColor + vec3(diffuse) + vec3(backLight)) * ao;
 
   // Subtle distance fog
   float dist = length(vWorldPos);
