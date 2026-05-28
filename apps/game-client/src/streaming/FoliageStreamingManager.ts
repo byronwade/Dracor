@@ -21,6 +21,9 @@ interface GlobalFoliageData {
   allMatrices: Float32Array;
 }
 
+const LOD0_DIST = 25;
+const LOD1_DIST = 120;
+
 function seededRandom(seed: number): () => number {
   let s = Math.abs(seed) | 1;
   return () => {
@@ -77,21 +80,40 @@ export class FoliageStreamingManager {
 
       if (matrices.length === 0) continue;
 
-      let sourceMesh = this.sourceMeshes.get(group.id);
-      if (!sourceMesh) {
-        const loaded = await this.loadSourceMesh(group);
-        if (loaded) {
-          this.sourceMeshes.set(group.id, loaded);
-          sourceMesh = loaded;
+      if (!this.sourceMeshes.has(group.id)) {
+        // LOD0: full detail GLB
+        const lod0 = await this.loadSourceMesh(group, 0);
+        // LOD1: simplified GLB
+        const lod1 = await this.loadSourceMesh(group, 1);
+        // LOD2: reuse LOD1 GLB if available — its lower poly count is fine at distance,
+        // and it looks dramatically better than a procedural cone silhouette.
+        // Fall back to procedural mesh only if no GLB loaded at all.
+        const lod2GlbBase = lod1 ?? lod0;
+        let lod2: Mesh | null = null;
+        if (lod2GlbBase) {
+          // Same source mesh reference — Babylon's thin-instance buffer is per-mesh, so
+          // we need a distinct mesh for the lod2 buffer. Clone it.
+          lod2 = lod2GlbBase.clone(`${group.id}_lod2_src`, null, true);
+          if (lod2) {
+            this.tagFoliage(lod2, group.type);
+            lod2.isVisible = false;
+            lod2.setEnabled(false);
+          }
         }
+        if (!lod2) lod2 = this.createFallbackMesh(group.type);
+
+        if (lod0) this.sourceMeshes.set(group.id + '_lod0', lod0);
+        if (lod1) this.sourceMeshes.set(group.id + '_lod1', lod1);
+        else if (lod0) this.sourceMeshes.set(group.id + '_lod1', lod0);
+        if (lod2) this.sourceMeshes.set(group.id + '_lod2', lod2);
+
+        this.sourceMeshes.set(group.id, lod0 ?? lod2!);
       }
 
-      if (sourceMesh) {
-        this.globalPlacements.set(group.id, {
-          sourceKey: group.id,
-          allMatrices: matrices,
-        });
-      }
+      this.globalPlacements.set(group.id, {
+        sourceKey: group.id,
+        allMatrices: matrices,
+      });
     }
 
     const rockSourceMesh = this.createRockSourceMesh();
@@ -142,11 +164,22 @@ export class FoliageStreamingManager {
     return new Float32Array(matrices);
   }
 
-  private async loadSourceMesh(group: FoliageGroup): Promise<Mesh | null> {
+  private tagFoliage(mesh: Mesh, type: string): void {
+    const isTree = type === 'tree_pine' || type === 'tree_dead' || type === 'tree_broadleaf';
+    mesh.metadata = {
+      ...(mesh.metadata ?? {}),
+      foliage: true,
+      foliageType: type,
+      castsShadow: isTree,
+      reflectsInWater: isTree,
+    };
+  }
+
+  private async loadSourceMesh(group: FoliageGroup, lodLevel = 0): Promise<Mesh | null> {
     if (group.modelId) {
       const config: ModelLoadConfig | undefined =
         group.modelFile || group.modelVariant
-          ? { fileName: group.modelFile ?? `${group.modelId}.glb`, variant: group.modelVariant, lodLevel: 0 }
+          ? { fileName: group.modelFile ?? `${group.modelId}.glb`, variant: group.modelVariant, lodLevel }
           : undefined;
 
       const mesh = await loadModel(group.modelId, this.scene, config);
@@ -159,10 +192,13 @@ export class FoliageStreamingManager {
         }
         mesh.isVisible = false;
         mesh.setEnabled(false);
+        this.tagFoliage(mesh, group.type);
         return mesh;
       }
     }
-    return this.createFallbackMesh(group.type);
+    const fallback = this.createFallbackMesh(group.type);
+    if (fallback) this.tagFoliage(fallback, group.type);
+    return fallback;
   }
 
   updateInstanceBuffers(playerPosition: Vector3): void {
@@ -183,12 +219,13 @@ export class FoliageStreamingManager {
   private rebuildAllBuffers(playerPosition: Vector3): void {
     const isFirst = this.rebuildCount === 0;
     this.rebuildCount++;
-    for (const [groupId, data] of this.globalPlacements) {
-      const sourceMesh = this.sourceMeshes.get(data.sourceKey);
-      if (!sourceMesh) continue;
 
+    for (const [groupId, data] of this.globalPlacements) {
+      const isRock = groupId === '__rock';
       const all = data.allMatrices;
-      const filtered: number[] = [];
+      const lod0Buf: number[] = [];
+      const lod1Buf: number[] = [];
+      const lod2Buf: number[] = [];
 
       for (let i = 0; i < all.length; i += 16) {
         const wx = all[i + 12];
@@ -203,21 +240,39 @@ export class FoliageStreamingManager {
           if ((hash % 1000) / 1000 > densityMult) continue;
         }
 
-        for (let j = 0; j < 16; j++) filtered.push(all[i + j]);
+        const buf = isRock ? lod0Buf
+          : dist < LOD0_DIST ? lod0Buf
+          : dist < LOD1_DIST ? lod1Buf
+          : lod2Buf;
+        for (let j = 0; j < 16; j++) buf.push(all[i + j]);
       }
 
-      const instanceCount = filtered.length / 16;
-      if (isFirst) {
-        console.log(`[Foliage] ${groupId}: ${instanceCount}/${data.allMatrices.length / 16} instances in range, mesh: ${sourceMesh.name}, visible: ${instanceCount > 0}`);
-      }
-      if (instanceCount > 0) {
-        sourceMesh.isVisible = true;
-        sourceMesh.setEnabled(true);
-        sourceMesh.thinInstanceSetBuffer('matrix', new Float32Array(filtered), 16, false);
+      if (isRock) {
+        this.applyBuffer(data.sourceKey, lod0Buf);
       } else {
-        sourceMesh.isVisible = false;
-        sourceMesh.setEnabled(false);
+        this.applyBuffer(groupId + '_lod0', lod0Buf);
+        this.applyBuffer(groupId + '_lod1', lod1Buf);
+        this.applyBuffer(groupId + '_lod2', lod2Buf);
       }
+
+      if (isFirst) {
+        const total = lod0Buf.length / 16 + lod1Buf.length / 16 + lod2Buf.length / 16;
+        console.log(`[Foliage] ${groupId}: ${Math.floor(lod0Buf.length / 16)} hi + ${Math.floor(lod1Buf.length / 16)} med + ${Math.floor(lod2Buf.length / 16)} low = ${Math.floor(total)} total`);
+      }
+    }
+  }
+
+  private applyBuffer(meshKey: string, buf: number[]): void {
+    const mesh = this.sourceMeshes.get(meshKey);
+    if (!mesh) return;
+    if (buf.length > 0) {
+      mesh.isVisible = true;
+      mesh.setEnabled(true);
+      mesh.thinInstanceSetBuffer('matrix', new Float32Array(buf), 16, false);
+    } else {
+      mesh.isVisible = false;
+      mesh.setEnabled(false);
+      mesh.thinInstanceSetBuffer('matrix', new Float32Array(0), 16, false);
     }
   }
 
@@ -297,16 +352,21 @@ export class FoliageStreamingManager {
   }
 
   private createFallbackPine(): Mesh {
-    const trunk = MeshBuilder.CreateCylinder('_spt', { diameter: 0.4, height: 4, tessellation: 6 }, this.scene);
-    trunk.position.y = 2;
-    const canopy = MeshBuilder.CreateCylinder('_spc', { diameterTop: 0, diameterBottom: 4, height: 4, tessellation: 6 }, this.scene);
-    canopy.position.y = 4.5;
+    // Three-tier silhouette (trunk + canopy + spire) — feels more like a fir than a cone
+    const trunk = MeshBuilder.CreateCylinder('_spt', { diameter: 0.5, height: 5, tessellation: 6 }, this.scene);
+    trunk.position.y = 2.5;
+    const canopy = MeshBuilder.CreateCylinder('_spc', { diameterTop: 1.4, diameterBottom: 4.5, height: 4.5, tessellation: 7 }, this.scene);
+    canopy.position.y = 5.0;
+    const spire = MeshBuilder.CreateCylinder('_sps', { diameterTop: 0, diameterBottom: 1.4, height: 2.5, tessellation: 6 }, this.scene);
+    spire.position.y = 8.5;
     trunk.material = this.fallbackMaterials['trunk'];
     canopy.material = this.fallbackMaterials['pine'];
-    const merged = Mesh.MergeMeshes([trunk, canopy], true, true, undefined, false, true);
+    spire.material = this.fallbackMaterials['pine'];
+    const merged = Mesh.MergeMeshes([trunk, canopy, spire], true, true, undefined, false, true);
     if (!merged) throw new Error('Failed to merge pine');
     merged.name = 'stream_pine_fb';
-    merged.material = this.fallbackMaterials['pine'];
+    // Apply the wind shader with SSS / cloud-shadow lighting on top of the diffuse color
+    merged.material = createWindMaterial(this.scene, this.fallbackMaterials['pine'], 'pine_fb');
     merged.isVisible = false;
     merged.setEnabled(false);
     return merged;
@@ -315,7 +375,7 @@ export class FoliageStreamingManager {
   private createFallbackDeadTree(): Mesh {
     const trunk = MeshBuilder.CreateCylinder('_sdt', { diameterTop: 0.2, diameterBottom: 0.6, height: 5, tessellation: 5 }, this.scene);
     trunk.position.y = 2.5;
-    trunk.material = this.fallbackMaterials['dead'];
+    trunk.material = createWindMaterial(this.scene, this.fallbackMaterials['dead'], 'dead_fb');
     trunk.name = 'stream_dead_fb';
     trunk.isVisible = false;
     trunk.setEnabled(false);
@@ -323,16 +383,28 @@ export class FoliageStreamingManager {
   }
 
   private createFallbackBush(): Mesh {
-    const bush = MeshBuilder.CreateBox('stream_bush_fb', { width: 1.5, height: 1, depth: 1.5 }, this.scene);
-    bush.material = this.fallbackMaterials['bush'];
-    bush.isVisible = false;
-    bush.setEnabled(false);
-    return bush;
+    // Three overlapping spheres look like foliage clumps, not a flat box
+    const a = MeshBuilder.CreateSphere('_sba', { diameter: 1.2, segments: 4 }, this.scene);
+    a.position.set(0, 0.5, 0);
+    const b = MeshBuilder.CreateSphere('_sbb', { diameter: 1.0, segments: 4 }, this.scene);
+    b.position.set(0.5, 0.4, 0.2);
+    const c = MeshBuilder.CreateSphere('_sbc', { diameter: 0.9, segments: 4 }, this.scene);
+    c.position.set(-0.4, 0.4, 0.3);
+    a.material = this.fallbackMaterials['bush'];
+    b.material = this.fallbackMaterials['bush'];
+    c.material = this.fallbackMaterials['bush'];
+    const merged = Mesh.MergeMeshes([a, b, c], true, true, undefined, false, true);
+    if (!merged) throw new Error('Failed to merge bush');
+    merged.name = 'stream_bush_fb';
+    merged.material = createWindMaterial(this.scene, this.fallbackMaterials['bush'], 'bush_fb');
+    merged.isVisible = false;
+    merged.setEnabled(false);
+    return merged;
   }
 
   private createFallbackGrass(): Mesh {
     const grass = MeshBuilder.CreatePlane('stream_grass_fb', { width: 0.4, height: 0.8 }, this.scene);
-    grass.material = this.fallbackMaterials['grass'];
+    grass.material = createWindMaterial(this.scene, this.fallbackMaterials['grass'], 'grass_fb');
     grass.isVisible = false;
     grass.setEnabled(false);
     return grass;
@@ -351,6 +423,7 @@ export class FoliageStreamingManager {
     rock.material = this.fallbackMaterials['rock'];
     rock.isVisible = false;
     rock.setEnabled(false);
+    rock.metadata = { rock: true, castsShadow: true, reflectsInWater: true };
     return rock;
   }
 

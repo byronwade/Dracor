@@ -47,6 +47,8 @@ export function createFractalNoise2D(
   lacunarity: number = 2.0,
   persistence: number = 0.5
 ): NoiseFn2D {
+  if (octaves <= 0) return () => 0;
+
   const layers: Array<{ noise: NoiseFn2D; amplitude: number; frequency: number }> = [];
 
   let amp = 1.0;

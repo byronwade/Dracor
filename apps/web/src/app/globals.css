@@ -95,6 +95,27 @@
     border-color: rgba(255, 255, 255, 0.1);
   }
 
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f97316;
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0a0a0a;
+    border-radius: 6px;
+    transition: background-color 0.2s, box-shadow 0.2s;
+  }
+  .btn-primary:hover {
+    background-color: #fb923c;
+    box-shadow: 0 0 20px rgba(249, 115, 22, 0.25);
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .input-dark {
     width: 100%;
     border: 1px solid rgba(255, 255, 255, 0.1);

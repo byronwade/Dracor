@@ -228,9 +228,9 @@ export const WEATHER_PRESETS: Record<WeatherType, WeatherPreset> = {
 const WEATHER_TRANSITIONS: Record<WeatherType, WeatherType[]> = {
   clear:         ['clear', 'partly_cloudy', 'foggy'],
   partly_cloudy: ['clear', 'partly_cloudy', 'overcast'],
-  overcast:      ['partly_cloudy', 'overcast', 'rain', 'foggy', 'snow'],
+  overcast:      ['partly_cloudy', 'overcast', 'rain', 'foggy', 'snow', 'dust_storm'],
   rain:          ['overcast', 'rain', 'thunderstorm', 'foggy'],
-  thunderstorm:  ['rain', 'overcast', 'thunderstorm'],
+  thunderstorm:  ['rain', 'overcast', 'thunderstorm', 'ash_storm', 'magical_storm'],
   snow:          ['overcast', 'snow', 'blizzard'],
   blizzard:      ['snow', 'blizzard'],
   foggy:         ['clear', 'overcast', 'foggy'],
@@ -323,11 +323,8 @@ export function createWeatherSystem(seed = 12345): WeatherSystem {
   }
 
   function beginTransitionTo(type: WeatherType, overrideDuration?: number): void {
-    // If we're mid-transition, bake the current interpolated value as the new "from"
-    if (state.blendProgress < 1) {
-      state.currentPreset = { ...cachedState, ...state.currentPreset, ...lerpState(state.currentPreset, state.targetPreset, state.blendProgress) } as WeatherPreset;
-    }
-
+    // Snapshot the current interpolated state as the new "from" so transitions
+    // blend smoothly from wherever we are now.
     state.currentPreset  = { ...cachedState } as WeatherPreset;
     state.targetPreset   = { ...WEATHER_PRESETS[type] };
     state.blendProgress  = 0;

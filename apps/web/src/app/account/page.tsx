@@ -26,16 +26,25 @@ function AccountDashboardContent() {
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (user) {
+        if (user) {
+          setProfile({
+            email: user.email || "Unknown",
+            displayName:
+              user.user_metadata?.display_name || user.email?.split("@")[0] || "Wanderer",
+            createdAt: user.created_at,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to load profile:", err);
         setProfile({
-          email: user.email || "Unknown",
-          displayName:
-            user.user_metadata?.display_name || user.email?.split("@")[0] || "Wanderer",
-          createdAt: user.created_at,
+          email: "Unknown",
+          displayName: "Wanderer",
+          createdAt: new Date().toISOString(),
         });
       }
     }

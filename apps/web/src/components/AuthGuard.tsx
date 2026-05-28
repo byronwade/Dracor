@@ -13,47 +13,43 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
 
   useEffect(() => {
+    let subscription: { unsubscribe: () => void } | undefined;
+
     async function checkSession() {
       const supabase = getSupabaseClient();
 
-      // If Supabase is not configured, allow access in dev mode
       if (!supabase) {
         if (process.env.NODE_ENV === "development") {
           setStatus("authenticated");
         } else {
           setStatus("unauthenticated");
-          router.push("/login");
+          router.push("/account/login");
         }
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { user }, error } = await supabase.auth.getUser();
 
-      if (session) {
+      if (user && !error) {
         setStatus("authenticated");
       } else {
         setStatus("unauthenticated");
-        router.push("/login");
+        router.push("/account/login");
       }
 
-      // Listen for auth changes
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (!session) {
           setStatus("unauthenticated");
-          router.push("/login");
+          router.push("/account/login");
         } else {
           setStatus("authenticated");
         }
       });
-
-      return () => subscription.unsubscribe();
+      subscription = sub;
     }
 
     checkSession();
+    return () => { subscription?.unsubscribe(); };
   }, [router]);
 
   if (status === "loading") {

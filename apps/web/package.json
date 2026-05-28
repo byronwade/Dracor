@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@babylonjs/core": "^7.0.0",
+    "@babylonjs/loaders": "^7.0.0",
     "@babylonjs/materials": "^7.0.0",
     "@dracor/database": "workspace:*",
     "@dracor/game-data": "workspace:*",
@@ -19,6 +20,7 @@
     "@dracor/ui": "workspace:*",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.39.0",
+    "babylonjs-gltf2interface": "^7.0.0",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"

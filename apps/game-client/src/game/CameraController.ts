@@ -11,7 +11,7 @@ const MAX_RADIUS = 40;
 const DEFAULT_RADIUS = 18;
 const MIN_BETA = 0.15;
 const MAX_BETA = 1.55;
-const DEFAULT_BETA = 0.85;
+const DEFAULT_BETA = 0.7;
 const DEFAULT_FOV = 0.75;
 const SPRINT_FOV = 0.82;
 
@@ -92,8 +92,9 @@ export class CameraController {
     this.getHeightAt = getHeightAt || null;
 
     const saved = loadCameraState();
+    const betaValid = saved?.beta != null && saved.beta >= 0.4 && saved.beta <= MAX_BETA;
     this.targetAlpha = saved?.alpha ?? Math.PI;
-    this.targetBeta = saved?.beta ?? DEFAULT_BETA;
+    this.targetBeta = betaValid ? saved!.beta : DEFAULT_BETA;
     this.targetRadius = saved?.radius ?? DEFAULT_RADIUS;
     this.targetFov = DEFAULT_FOV;
     this.collisionRadius = saved?.radius ?? DEFAULT_RADIUS;

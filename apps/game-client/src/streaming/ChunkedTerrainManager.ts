@@ -1,10 +1,15 @@
 import { Scene } from '@babylonjs/core/scene';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Material } from '@babylonjs/core/Materials/material';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
+import { createTerrainPBRMaterial } from '../materials/terrainMaterial';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { PhysicsBody } from '@babylonjs/core/Physics/v2/physicsBody';
+import { PhysicsMotionType } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
+import { PhysicsShapeMesh } from '@babylonjs/core/Physics/v2/physicsShape';
 import '@babylonjs/core/Meshes/Builders/groundBuilder';
 
 import type { TerrainDefinition, TerrainChunkDef } from '../scenes/IronvaleOutskirtsScene';
@@ -17,9 +22,12 @@ import {
 
 interface LoadedChunk {
   mesh: Mesh;
+  body: PhysicsBody | null;
+  shape: PhysicsShapeMesh | null;
   gridX: number;
   gridZ: number;
   subdivisions: number;
+  isFast: boolean;
 }
 
 const WORLD_SEED = new WorldSeed('dracor-world-001');
@@ -93,27 +101,29 @@ export class ChunkedTerrainManager {
   private terrain: TerrainDefinition;
   private config: StreamingConfig;
   private loadedChunks = new Map<string, LoadedChunk>();
-  private material: StandardMaterial;
-  private chunkGen: ChunkGenerator;
-  private biomeResolver: BiomeResolver;
+  private material: Material;
+  private chunkGen: ChunkGenerator | null = null;
+  private biomeResolver: BiomeResolver | null = null;
   private _chunkSize: number;
+  private worldGenReady = false;
 
   constructor(scene: Scene, terrain: TerrainDefinition, config: StreamingConfig) {
     this.scene = scene;
     this.terrain = terrain;
     this.config = config;
-    this.chunkGen = new ChunkGenerator(WORLD_SEED, 512);
     this._chunkSize = DYNAMIC_CHUNK_SIZE;
 
+    this.material = createTerrainPBRMaterial(scene);
+  }
+
+  async initWorldGen(): Promise<void> {
+    if (this.worldGenReady) return;
+    this.chunkGen = new ChunkGenerator(WORLD_SEED, 512);
     const elevMap = createElevationMap(WORLD_SEED);
     const climate = createClimateMap(WORLD_SEED, elevMap.getElevation, elevMap.getContinental);
     this.biomeResolver = createBiomeResolver(WORLD_SEED, elevMap.getElevation, elevMap.getContinental, climate);
-
-    this.material = new StandardMaterial('terrainMat', scene);
-    this.material.diffuseColor = new Color3(1, 1, 1);
-    this.material.specularColor = new Color3(0.05, 0.05, 0.05);
-    this.material.roughness = 1.0;
-    (this.material as any).environmentIntensity = 0;
+    this.worldGenReady = true;
+    console.log('[Terrain] World gen initialized');
   }
 
   worldToGrid(worldX: number, worldZ: number): { gridX: number; gridZ: number } {
@@ -158,13 +168,60 @@ export class ChunkedTerrainManager {
     return 16;
   }
 
+  private static simpleHeight(x: number, z: number): number {
+    let h = Math.sin(x * 0.008) * Math.cos(z * 0.006) * 0.4;
+    h += Math.sin(x * 0.02 + 1.7) * Math.cos(z * 0.025 + 0.3) * 0.2;
+    h += Math.sin(x * 0.07 + 3.1) * Math.cos(z * 0.06 + 2.1) * 0.08;
+    h += Math.sin(x * 0.15 + 5.0) * Math.sin(z * 0.12 + 4.0) * 0.03;
+    const dist = Math.sqrt(x * x + z * z);
+    return h * 30 * Math.min(1, dist / 60);
+  }
+
+  loadChunkFast(gridX: number, gridZ: number): void {
+    const key = `${gridX}_${gridZ}`;
+    if (this.loadedChunks.has(key)) return;
+
+    const center = this.getChunkWorldCenter(gridX, gridZ);
+    const subs = 8;
+    const mesh = MeshBuilder.CreateGround(
+      `terrain_${key}`,
+      { width: this._chunkSize, height: this._chunkSize, subdivisions: subs, updatable: true },
+      this.scene
+    );
+
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (positions) {
+      for (let i = 0; i < positions.length; i += 3) {
+        positions[i + 1] = ChunkedTerrainManager.simpleHeight(
+          positions[i] + center.x, positions[i + 2] + center.z
+        );
+      }
+      mesh.updateVerticesData(VertexBuffer.PositionKind, positions);
+      mesh.createNormals(false);
+    }
+
+    mesh.material = this.material;
+    mesh.receiveShadows = true;
+    mesh.position = new Vector3(center.x, 0, center.z);
+    mesh.freezeWorldMatrix();
+
+    this.loadedChunks.set(key, { mesh, body: null, shape: null, gridX, gridZ, subdivisions: subs, isFast: true });
+  }
+
   loadChunk(gridX: number, gridZ: number, playerDistance: number): void {
+    if (!this.worldGenReady || !this.chunkGen) {
+      console.log(`[Terrain] loadChunk(${gridX},${gridZ}) skipped: worldGen=${this.worldGenReady} chunkGen=${!!this.chunkGen}`);
+      return;
+    }
+
     const key = `${gridX}_${gridZ}`;
     const targetSubs = this.getSubdivisionsForDistance(playerDistance);
 
     const existing = this.loadedChunks.get(key);
     if (existing) {
-      if (existing.subdivisions === targetSubs) return;
+      if (existing.subdivisions === targetSubs && !existing.isFast) return;
+      if (existing.body) existing.body.dispose();
+      if (existing.shape) existing.shape.dispose();
       existing.mesh.dispose();
       this.loadedChunks.delete(key);
     }
@@ -200,7 +257,7 @@ export class ChunkedTerrainManager {
           slopeAngle = Math.atan(Math.sqrt(slopeX * slopeX + slopeZ * slopeZ)) * (180 / Math.PI);
         }
 
-        const biome = this.biomeResolver.getBiomeType(worldX, worldZ);
+        const biome = this.biomeResolver!.getBiomeType(worldX, worldZ);
         const color = getBiomeColor(biome, slopeAngle, worldX, worldZ);
         const vi = (i / 3) * 4;
         colors[vi] = color.r;
@@ -220,17 +277,31 @@ export class ChunkedTerrainManager {
     mesh.position = new Vector3(center.x, 0, center.z);
     mesh.freezeWorldMatrix();
 
-    this.loadedChunks.set(key, { mesh, gridX, gridZ, subdivisions: targetSubs });
+    // Create static physics collider from terrain mesh geometry
+    let body: PhysicsBody | null = null;
+    let shape: PhysicsShapeMesh | null = null;
+    if (this.scene.getPhysicsEngine()) {
+      shape = new PhysicsShapeMesh(mesh, this.scene);
+      body = new PhysicsBody(mesh, PhysicsMotionType.STATIC, false, this.scene);
+      body.shape = shape;
+    }
+
+    this.loadedChunks.set(key, { mesh, body, shape, gridX, gridZ, subdivisions: targetSubs, isFast: false });
   }
 
   unloadChunk(gridX: number, gridZ: number): void {
     const key = `${gridX}_${gridZ}`;
     const chunk = this.loadedChunks.get(key);
     if (chunk) {
+      if (chunk.body) chunk.body.dispose();
+      if (chunk.shape) chunk.shape.dispose();
       chunk.mesh.dispose();
       this.loadedChunks.delete(key);
     }
   }
+
+  private static MAX_CHUNKS_PER_FRAME = 2;
+  private static MAX_LOD_CHANGES_PER_FRAME = 1;
 
   updateAroundPlayer(playerPosition: Vector3): void {
     const loadDist = this.config.loadDistance;
@@ -239,46 +310,49 @@ export class ChunkedTerrainManager {
     const needed = this.getChunksInRadius(playerPosition.x, playerPosition.z, loadDist);
     const neededKeys = new Set(needed.map(c => `${c.gridX}_${c.gridZ}`));
 
-    const toUnload: Array<{ gridX: number; gridZ: number }> = [];
     for (const [key, chunk] of this.loadedChunks) {
       if (!neededKeys.has(key)) {
         const center = this.getChunkWorldCenter(chunk.gridX, chunk.gridZ);
         const dist = Math.sqrt((playerPosition.x - center.x) ** 2 + (playerPosition.z - center.z) ** 2);
         if (dist > unloadDist) {
-          toUnload.push({ gridX: chunk.gridX, gridZ: chunk.gridZ });
+          this.unloadChunk(chunk.gridX, chunk.gridZ);
         }
       }
     }
-    for (const c of toUnload) this.unloadChunk(c.gridX, c.gridZ);
 
     let loaded = 0;
     for (const coord of needed) {
+      if (loaded >= ChunkedTerrainManager.MAX_CHUNKS_PER_FRAME) break;
       const key = `${coord.gridX}_${coord.gridZ}`;
       if (!this.loadedChunks.has(key)) {
         this.loadChunk(coord.gridX, coord.gridZ, coord.dist);
         loaded++;
       }
     }
-
-    if (loaded > 0) {
-      console.log(`[Terrain] Loaded ${loaded} chunks (total: ${this.loadedChunks.size}, needed: ${needed.length})`);
-    }
   }
 
   updateLOD(playerPosition: Vector3): void {
     this.updateAroundPlayer(playerPosition);
 
+    let changes = 0;
     for (const [, chunk] of this.loadedChunks) {
+      if (changes >= ChunkedTerrainManager.MAX_LOD_CHANGES_PER_FRAME) break;
       const center = this.getChunkWorldCenter(chunk.gridX, chunk.gridZ);
-      const dx = playerPosition.x - center.x;
-      const dz = playerPosition.z - center.z;
-      const dist = Math.sqrt(dx * dx + dz * dz);
+      const dist = Math.sqrt(
+        (playerPosition.x - center.x) ** 2 + (playerPosition.z - center.z) ** 2
+      );
       const targetSubs = this.getSubdivisionsForDistance(dist);
 
-      if (chunk.subdivisions !== targetSubs) {
+      const needsUpgrade = chunk.subdivisions !== targetSubs || (chunk.isFast && this.worldGenReady);
+      if (needsUpgrade) {
         this.loadChunk(chunk.gridX, chunk.gridZ, dist);
+        changes++;
       }
     }
+  }
+
+  getLoadedChunkCount(): number {
+    return this.loadedChunks.size;
   }
 
   isChunkLoaded(gridX: number, gridZ: number): boolean {
@@ -290,7 +364,8 @@ export class ChunkedTerrainManager {
   }
 
   getHeightAt: HeightSampler = (x: number, z: number): number => {
-    return this.chunkGen.getHeightAt(x, z);
+    if (this.chunkGen) return this.chunkGen.getHeightAt(x, z);
+    return ChunkedTerrainManager.simpleHeight(x, z);
   };
 
   getAllChunkDefs(): TerrainChunkDef[] {
@@ -301,6 +376,8 @@ export class ChunkedTerrainManager {
 
   dispose(): void {
     for (const [, chunk] of this.loadedChunks) {
+      if (chunk.body) chunk.body.dispose();
+      if (chunk.shape) chunk.shape.dispose();
       chunk.mesh.dispose();
     }
     this.loadedChunks.clear();

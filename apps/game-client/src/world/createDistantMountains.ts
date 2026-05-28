@@ -4,14 +4,12 @@ import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
-import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
-import '@babylonjs/core/Meshes/Builders/groundBuilder';
 
 function seededRandom(seed: number): () => number {
   let s = seed;
   return () => {
-    s = (s * 16807 + 0) % 2147483647;
+    s = (s * 16807) % 2147483647;
     return s / 2147483647;
   };
 }
@@ -42,7 +40,6 @@ export function createDistantMountains(scene: Scene): TransformNode {
     const height = 80 + rand() * 200;
     const baseRadius = 60 + rand() * 80;
 
-    // Main peak
     const peak = MeshBuilder.CreateCylinder(`distPeak_${i}`, {
       diameterTop: 0,
       diameterBottom: baseRadius * 2,
@@ -57,7 +54,6 @@ export function createDistantMountains(scene: Scene): TransformNode {
     peak.isPickable = false;
     peak.parent = root;
 
-    // Snow cap on tall peaks
     if (height > 160) {
       const capHeight = height * 0.3;
       const capRadius = baseRadius * 0.4;
@@ -76,7 +72,6 @@ export function createDistantMountains(scene: Scene): TransformNode {
       cap.parent = root;
     }
 
-    // Secondary smaller peak nearby (50% chance)
     if (rand() > 0.5) {
       const subAngle = angle + (rand() - 0.5) * 0.12;
       const subDist = dist + (rand() - 0.5) * 80;

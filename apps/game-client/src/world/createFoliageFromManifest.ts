@@ -11,7 +11,7 @@ import '@babylonjs/core/Meshes/thinInstanceMesh';
 import type { QualitySettings, FoliageGroup } from '../scenes/IronvaleOutskirtsScene';
 import { loadModel, type ModelLoadConfig } from './modelLoader';
 import { generatePlacements, type PlacementConfig, type ExclusionData } from './placementEngine';
-import { createWindMaterial, updateWind } from './windShader';
+import { updateWind } from './windShader';
 
 export { type ExclusionData } from './placementEngine';
 

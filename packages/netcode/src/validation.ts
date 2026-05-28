@@ -56,20 +56,6 @@ export function validateInput(input: ClientInputMessage): boolean {
   return true;
 }
 
-export function validateChatMessage(content: string): string | null {
-  if (typeof content !== 'string') {
-    return null;
-  }
-
-  const trimmed = content.trim();
-
-  if (trimmed.length === 0 || trimmed.length > MAX_CHAT_LENGTH) {
-    return null;
-  }
-
-  return trimmed;
-}
-
 export function clampPosition(
   x: number,
   y: number,

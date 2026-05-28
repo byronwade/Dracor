@@ -1,0 +1,14 @@
+{
+  "name": "@dracor/sync-public-assets",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "sync": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@dracor/config": "workspace:*",
+    "tsx": "^4.7.0",
+    "typescript": "^5.5.0"
+  }
+}

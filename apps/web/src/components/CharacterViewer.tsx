@@ -1,7 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import type { RaceId } from "@dracor/shared";
+import { useEffect, useRef, useCallback, useState } from "react";
+import type { RaceId, WeaponType } from "@dracor/shared";
+import {
+  CHARACTER_GLB,
+  WEAPON_GLB,
+  RACE_HAND_ANCHORS,
+  WEAPON_GRIPS,
+} from "./viewer3d/anchors";
+import {
+  PROCEDURAL_CONFIGS,
+  buildProceduralCharacter,
+} from "./viewer3d/proceduralCharacter";
+import { buildProceduralWeapon } from "./viewer3d/proceduralWeapon";
 
 interface CharacterViewerProps {
   raceId: RaceId;
@@ -11,138 +22,49 @@ interface CharacterViewerProps {
     marking?: string;
     uniqueFeature?: string;
   };
-  weapon?: "blade" | "bow" | "staff";
+  weapon?: WeaponType;
   memory?: "ember" | "stone" | "storm";
   autoRotate?: boolean;
+  cameraAngle?: "front" | "three-quarter";
   className?: string;
 }
-
-const RACE_CONFIGS: Record<
-  RaceId,
-  {
-    bodyType: "heavy" | "medium" | "lean" | "ethereal";
-    height: number;
-    skin: [number, number, number];
-    armor: [number, number, number];
-    accent: [number, number, number];
-    eyeGlow: [number, number, number];
-  }
-> = {
-  dracor: {
-    bodyType: "medium",
-    height: 1.85,
-    skin: [0.55, 0.38, 0.25],
-    armor: [0.35, 0.18, 0.08],
-    accent: [0.85, 0.45, 0.1],
-    eyeGlow: [1.0, 0.5, 0.0],
-  },
-  ironborn: {
-    bodyType: "heavy",
-    height: 1.55,
-    skin: [0.42, 0.4, 0.38],
-    armor: [0.3, 0.28, 0.26],
-    accent: [0.7, 0.65, 0.55],
-    eyeGlow: [1.0, 0.6, 0.0],
-  },
-  sylvhari: {
-    bodyType: "lean",
-    height: 1.95,
-    skin: [0.65, 0.8, 0.65],
-    armor: [0.18, 0.35, 0.2],
-    accent: [0.4, 0.8, 0.45],
-    eyeGlow: [0.3, 1.0, 0.5],
-  },
-  ashwalker: {
-    bodyType: "medium",
-    height: 1.78,
-    skin: [0.6, 0.48, 0.35],
-    armor: [0.35, 0.28, 0.2],
-    accent: [0.65, 0.5, 0.3],
-    eyeGlow: [0.9, 0.8, 0.4],
-  },
-  voidtouched: {
-    bodyType: "ethereal",
-    height: 1.82,
-    skin: [0.48, 0.38, 0.55],
-    armor: [0.15, 0.08, 0.25],
-    accent: [0.5, 0.2, 0.7],
-    eyeGlow: [0.7, 0.2, 1.0],
-  },
-  bloodfane: {
-    bodyType: "lean",
-    height: 1.92,
-    skin: [0.9, 0.82, 0.78],
-    armor: [0.3, 0.0, 0.0],
-    accent: [0.8, 0.0, 0.15],
-    eyeGlow: [1.0, 0.0, 0.2],
-  },
-  stoneguard: {
-    bodyType: "heavy",
-    height: 1.4,
-    skin: [0.45, 0.42, 0.4],
-    armor: [0.25, 0.25, 0.25],
-    accent: [0.83, 0.63, 0.09],
-    eyeGlow: [0.83, 0.63, 0.09],
-  },
-  grukhar: {
-    bodyType: "heavy",
-    height: 2.1,
-    skin: [0.35, 0.42, 0.22],
-    armor: [0.3, 0.22, 0.1],
-    accent: [0.55, 0.41, 0.08],
-    eyeGlow: [0.8, 0.2, 0.0],
-  },
-  skrix: {
-    bodyType: "lean",
-    height: 1.2,
-    skin: [0.4, 0.48, 0.3],
-    armor: [0.3, 0.35, 0.2],
-    accent: [0.53, 0.67, 0.0],
-    eyeGlow: [0.7, 0.8, 0.0],
-  },
-};
 
 export function CharacterViewer({
   raceId,
   weapon,
   memory,
-  autoRotate = true,
+  cameraAngle = "front",
   className = "",
 }: CharacterViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const buildScene = useCallback(async () => {
+  const buildScene = useCallback(async (signal: { disposed: boolean }) => {
     if (!canvasRef.current) return;
 
     const B = await import("@babylonjs/core");
+    if (signal.disposed || !canvasRef.current) return;
 
-    if (engineRef.current) {
-      engineRef.current.dispose();
-    }
+    if (engineRef.current) engineRef.current.dispose();
 
     const engine = new B.Engine(canvasRef.current, true, {
-      preserveDrawingBuffer: true,
-      stencil: true,
-      antialias: true,
+      preserveDrawingBuffer: true, stencil: true, antialias: true,
     });
     engineRef.current = engine;
 
     const scene = new B.Scene(engine);
-    const config = RACE_CONFIGS[raceId];
+    const config = PROCEDURAL_CONFIGS[raceId];
+    const characterHeight = CHARACTER_GLB[raceId]?.height ?? config.height;
 
     scene.clearColor = new B.Color4(0.02, 0.015, 0.03, 1);
     scene.ambientColor = new B.Color3(0.05, 0.04, 0.06);
 
-    // Camera — front-facing, user can freely orbit
-    const targetY = config.height * 0.55;
+    const targetY = characterHeight * 0.55;
+    const initialAlpha = cameraAngle === "three-quarter" ? Math.PI / 2 + 0.4 : Math.PI / 2;
     const camera = new B.ArcRotateCamera(
-      "camera",
-      Math.PI / 2,
-      Math.PI / 2.4,
-      4.0,
-      new B.Vector3(0, targetY, 0),
-      scene
+      "camera", initialAlpha, Math.PI / 2.4, 4.0,
+      new B.Vector3(0, targetY, 0), scene
     );
     camera.lowerRadiusLimit = 2.0;
     camera.upperRadiusLimit = 8;
@@ -155,16 +77,12 @@ export function CharacterViewer({
     camera.angularSensibilityY = 800;
     camera.attachControl(canvasRef.current, true);
 
-    // Idle sway — pauses when user is interacting
     let idleTime = 0;
     let userInteracting = false;
     let interactTimeout: ReturnType<typeof setTimeout> | null = null;
-    const baseAlpha = Math.PI / 2;
+    const baseAlpha = initialAlpha;
 
-    const onPointerDown = () => {
-      userInteracting = true;
-      if (interactTimeout) clearTimeout(interactTimeout);
-    };
+    const onPointerDown = () => { userInteracting = true; if (interactTimeout) clearTimeout(interactTimeout); };
     const onPointerUp = () => {
       if (interactTimeout) clearTimeout(interactTimeout);
       interactTimeout = setTimeout(() => { userInteracting = false; }, 2000);
@@ -179,7 +97,6 @@ export function CharacterViewer({
       }
     });
 
-    // 3-point studio lighting (follows the front of the character)
     const keyLight = new B.DirectionalLight("key", new B.Vector3(-0.5, -1.2, 1), scene);
     keyLight.intensity = 1.6;
     keyLight.diffuse = new B.Color3(1, 0.95, 0.9);
@@ -199,7 +116,6 @@ export function CharacterViewer({
     frontFill.diffuse = new B.Color3(1, 0.95, 0.9);
     frontFill.range = 6;
 
-    // Dark ground
     const ground = B.MeshBuilder.CreateGround("ground", { width: 16, height: 16 }, scene);
     ground.position.y = 0;
     const gMat = new B.StandardMaterial("gMat", scene);
@@ -207,12 +123,31 @@ export function CharacterViewer({
     gMat.specularColor = new B.Color3(0.02, 0.02, 0.02);
     ground.material = gMat;
 
-    // Build the character
-    buildCharacter(B, scene, config, raceId, weapon, memory);
+    const characterRoot = await loadCharacter(B, scene, raceId, characterHeight);
+    if (signal.disposed || scene.isDisposed) { engine.dispose(); return; }
+
+    const anchors = RACE_HAND_ANCHORS[raceId];
+    const H = characterHeight * 1.2;
+    const rightHand = new B.TransformNode("rightHand", scene);
+    rightHand.position.set(anchors.rightHand.x * H, anchors.rightHand.y * H, anchors.rightHand.z * H);
+    rightHand.parent = characterRoot;
+    const leftHand = new B.TransformNode("leftHand", scene);
+    leftHand.position.set(anchors.leftHand.x * H, anchors.leftHand.y * H, anchors.leftHand.z * H);
+    leftHand.parent = characterRoot;
+
+    if (weapon) {
+      await attachWeapon(B, scene, weapon, raceId, rightHand, leftHand, characterHeight, config.accent);
+      if (signal.disposed || scene.isDisposed) { engine.dispose(); return; }
+    }
+
+    if (memory) attachMemoryAura(B, scene, characterRoot, memory, characterHeight);
 
     engine.runRenderLoop(() => scene.render());
+    scene.executeWhenReady(() => { if (!signal.disposed) setIsLoading(false); });
+
     const onResize = () => engine.resize();
     window.addEventListener("resize", onResize);
+
     const cv = canvasRef.current!;
     return () => {
       cv.removeEventListener("pointerdown", onPointerDown);
@@ -221,12 +156,21 @@ export function CharacterViewer({
       window.removeEventListener("resize", onResize);
       engine.dispose();
     };
-  }, [raceId, weapon, memory, autoRotate]);
+  }, [raceId, weapon, memory, cameraAngle]);
 
   useEffect(() => {
+    setIsLoading(true);
     let cleanup: (() => void) | undefined;
-    buildScene().then((c) => { cleanup = c; });
+    const signal = { disposed: false };
+    buildScene(signal).then((c) => {
+      if (signal.disposed) c?.();
+      else cleanup = c;
+    }).catch((err) => {
+      console.error("CharacterViewer build failed", err);
+      if (!signal.disposed) setIsLoading(false);
+    });
     return () => {
+      signal.disposed = true;
       cleanup?.();
       if (engineRef.current) { engineRef.current.dispose(); engineRef.current = null; }
     };
@@ -235,606 +179,166 @@ export function CharacterViewer({
   return (
     <div className={`relative h-full w-full ${className}`}>
       <canvas ref={canvasRef} className="h-full w-full touch-none" style={{ outline: "none" }} />
-      <div className="pointer-events-none absolute inset-0" style={{
-        background: "radial-gradient(ellipse at center, transparent 50%, rgba(2,1,5,0.6) 100%)"
-      }} />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(ellipse at center, transparent 50%, rgba(2,1,5,0.6) 100%)" }}
+      />
+      {isLoading && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-stone-950/60 backdrop-blur-sm transition-opacity">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-10 w-10 animate-spin rounded-full border-2 border-ember-500/30 border-t-ember-500" />
+            <p className="font-display text-xs tracking-widest text-stone-600 uppercase">Summoning</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function buildCharacter(B: any, scene: any, config: (typeof RACE_CONFIGS)[RaceId], raceId: RaceId, weapon?: string, memory?: string) {
-  const S = config.height / 1.8; // scale factor
-  const root = new B.TransformNode("root", scene);
-  const seg = 24; // high tessellation for smooth surfaces
+async function loadCharacter(B: any, scene: any, raceId: RaceId, characterHeight: number): Promise<any> {
+  const glbInfo = CHARACTER_GLB[raceId];
 
-  // --- Materials ---
-  const skinMat = new B.StandardMaterial("skin", scene);
-  skinMat.diffuseColor = new B.Color3(...config.skin);
-  skinMat.specularColor = new B.Color3(0.12, 0.1, 0.08);
-  skinMat.specularPower = 40;
+  if (glbInfo) {
+    await import("@babylonjs/loaders/glTF");
+    if (scene.isDisposed) throw new Error("scene disposed");
+    const result = await B.SceneLoader.ImportMeshAsync("", glbInfo.dir, glbInfo.file, scene);
+    if (scene.isDisposed) throw new Error("scene disposed");
+    const glbRoot = result.meshes[0];
 
-  const armorMat = new B.StandardMaterial("armor", scene);
-  armorMat.diffuseColor = new B.Color3(...config.armor);
-  armorMat.specularColor = new B.Color3(0.2, 0.18, 0.15);
-  armorMat.specularPower = 20;
-
-  const accentMat = new B.StandardMaterial("accent", scene);
-  accentMat.diffuseColor = new B.Color3(...config.accent);
-  accentMat.specularColor = new B.Color3(0.3, 0.28, 0.25);
-  accentMat.specularPower = 16;
-
-  const darkMat = new B.StandardMaterial("dark", scene);
-  darkMat.diffuseColor = new B.Color3(0.08, 0.06, 0.05);
-  darkMat.specularColor = new B.Color3(0.05, 0.05, 0.05);
-
-  const eyeMat = new B.StandardMaterial("eye", scene);
-  eyeMat.diffuseColor = new B.Color3(0, 0, 0);
-  eyeMat.emissiveColor = new B.Color3(...config.eyeGlow);
-
-  // --- Proportions by body type ---
-  let hipW = 0.22, shoulderW = 0.3, torsoH = 0.55, waistW = 0.2;
-  let legUp = 0.42, legLow = 0.42, armUp = 0.35, armLow = 0.32;
-  let headR = 0.14, neckH = 0.08, footL = 0.16;
-
-  switch (config.bodyType) {
-    case "heavy":
-      hipW = 0.28; shoulderW = 0.4; torsoH = 0.5; waistW = 0.28;
-      legUp = 0.36; legLow = 0.34; armUp = 0.3; armLow = 0.28;
-      headR = 0.16; footL = 0.18;
-      break;
-    case "lean":
-      hipW = 0.18; shoulderW = 0.25; torsoH = 0.6; waistW = 0.17;
-      legUp = 0.48; legLow = 0.48; armUp = 0.4; armLow = 0.36;
-      headR = 0.12; footL = 0.15;
-      break;
-    case "ethereal":
-      hipW = 0.19; shoulderW = 0.26; torsoH = 0.58; waistW = 0.18;
-      legUp = 0.45; legLow = 0.44; armUp = 0.38; armLow = 0.34;
-      headR = 0.13; footL = 0.14;
-      break;
-  }
-
-  // Y positions
-  const footTop = footL * S * 0.3;
-  const kneeY = footTop + legLow * S;
-  const hipY = kneeY + legUp * S;
-  const waistY = hipY + 0.05 * S;
-  const chestY = waistY + torsoH * S * 0.6;
-  const shoulderY = waistY + torsoH * S;
-  const neckY = shoulderY + neckH * S;
-  const headY = neckY + headR * S + 0.02 * S;
-
-  // --- Pelvis / Hips ---
-  const pelvis = B.MeshBuilder.CreateSphere("pelvis", {
-    diameterX: hipW * S * 2.2, diameterY: 0.15 * S, diameterZ: hipW * S * 1.6, segments: seg
-  }, scene);
-  pelvis.position.y = hipY;
-  pelvis.material = armorMat;
-  pelvis.parent = root;
-
-  // --- Torso ---
-  // Lower torso (waist to chest) — tapered cylinder
-  const lowerTorso = B.MeshBuilder.CreateCylinder("lTorso", {
-    diameterTop: shoulderW * S * 2, diameterBottom: waistW * S * 2,
-    height: torsoH * S * 0.65, tessellation: seg
-  }, scene);
-  lowerTorso.position.y = waistY + torsoH * S * 0.325;
-  lowerTorso.material = armorMat;
-  lowerTorso.parent = root;
-
-  // Upper torso / chest — wider sphere
-  const chest = B.MeshBuilder.CreateSphere("chest", {
-    diameterX: shoulderW * S * 2.2, diameterY: torsoH * S * 0.55,
-    diameterZ: shoulderW * S * 1.5, segments: seg
-  }, scene);
-  chest.position.y = chestY + torsoH * S * 0.15;
-  chest.material = armorMat;
-  chest.parent = root;
-
-  // --- Neck ---
-  const neck = B.MeshBuilder.CreateCylinder("neck", {
-    diameter: 0.08 * S, height: neckH * S * 1.5, tessellation: seg
-  }, scene);
-  neck.position.y = shoulderY + neckH * S * 0.5;
-  neck.material = skinMat;
-  neck.parent = root;
-
-  // --- Head ---
-  const head = B.MeshBuilder.CreateSphere("head", {
-    diameterX: headR * S * 2, diameterY: headR * S * 2.3,
-    diameterZ: headR * S * 2, segments: seg
-  }, scene);
-  head.position.y = headY;
-  head.material = skinMat;
-  head.parent = root;
-
-  // Face — slight forward protrusion for nose/brow area
-  const face = B.MeshBuilder.CreateSphere("face", {
-    diameterX: headR * S * 1.4, diameterY: headR * S * 1.2,
-    diameterZ: headR * S * 0.6, segments: 16
-  }, scene);
-  face.position.set(0, headY - headR * S * 0.1, headR * S * 0.7);
-  face.material = skinMat;
-  face.parent = root;
-
-  // Eyes
-  for (const side of [-1, 1]) {
-    const eye = B.MeshBuilder.CreateSphere(`eye${side}`, { diameter: 0.025 * S, segments: 12 }, scene);
-    eye.position.set(side * headR * S * 0.4, headY + headR * S * 0.15, headR * S * 0.85);
-    eye.material = eyeMat;
-    eye.parent = root;
-  }
-
-  // --- Legs ---
-  for (const side of [-1, 1]) {
-    const hx = side * hipW * S * 0.75;
-
-    // Upper leg
-    const uLeg = B.MeshBuilder.CreateCapsule(`uLeg${side}`, {
-      radius: 0.085 * S, height: legUp * S, subdivisions: 2, tessellation: seg
-    }, scene);
-    uLeg.position.set(hx, kneeY + legUp * S * 0.5, 0);
-    uLeg.material = armorMat;
-    uLeg.parent = root;
-
-    // Knee joint
-    const knee = B.MeshBuilder.CreateSphere(`knee${side}`, {
-      diameter: 0.1 * S, segments: 16
-    }, scene);
-    knee.position.set(hx, kneeY, 0.01 * S);
-    knee.material = armorMat;
-    knee.parent = root;
-
-    // Lower leg
-    const lLeg = B.MeshBuilder.CreateCapsule(`lLeg${side}`, {
-      radius: 0.07 * S, height: legLow * S, subdivisions: 2, tessellation: seg
-    }, scene);
-    lLeg.position.set(hx, footTop + legLow * S * 0.5, 0);
-    lLeg.material = armorMat;
-    lLeg.parent = root;
-
-    // Foot
-    const foot = B.MeshBuilder.CreateBox(`foot${side}`, {
-      width: 0.1 * S, height: footL * S * 0.3, depth: footL * S
-    }, scene);
-    foot.position.set(hx, footL * S * 0.15, 0.03 * S);
-    foot.material = darkMat;
-    foot.parent = root;
-  }
-
-  // --- Arms ---
-  for (const side of [-1, 1]) {
-    const sx = side * (shoulderW * S + 0.02 * S);
-
-    // Shoulder sphere
-    const shoulder = B.MeshBuilder.CreateSphere(`shoulder${side}`, {
-      diameter: 0.12 * S, segments: seg
-    }, scene);
-    shoulder.position.set(sx, shoulderY, 0);
-    shoulder.material = accentMat;
-    shoulder.parent = root;
-
-    // Upper arm
-    const uArm = B.MeshBuilder.CreateCapsule(`uArm${side}`, {
-      radius: 0.055 * S, height: armUp * S, subdivisions: 2, tessellation: seg
-    }, scene);
-    uArm.position.set(sx * 1.05, shoulderY - armUp * S * 0.5, 0);
-    uArm.rotation.z = side * 0.08;
-    uArm.material = skinMat;
-    uArm.parent = root;
-
-    // Elbow
-    const elbow = B.MeshBuilder.CreateSphere(`elbow${side}`, {
-      diameter: 0.065 * S, segments: 12
-    }, scene);
-    elbow.position.set(sx * 1.08, shoulderY - armUp * S, 0);
-    elbow.material = skinMat;
-    elbow.parent = root;
-
-    // Forearm
-    const fArm = B.MeshBuilder.CreateCapsule(`fArm${side}`, {
-      radius: 0.048 * S, height: armLow * S, subdivisions: 2, tessellation: seg
-    }, scene);
-    fArm.position.set(sx * 1.1, shoulderY - armUp * S - armLow * S * 0.5, 0.01 * S);
-    fArm.rotation.z = side * 0.04;
-    fArm.material = skinMat;
-    fArm.parent = root;
-
-    // Hand
-    const hand = B.MeshBuilder.CreateSphere(`hand${side}`, {
-      diameterX: 0.06 * S, diameterY: 0.07 * S, diameterZ: 0.04 * S, segments: 12
-    }, scene);
-    hand.position.set(sx * 1.12, shoulderY - armUp * S - armLow * S, 0.02 * S);
-    hand.material = skinMat;
-    hand.parent = root;
-
-    // Bracer / gauntlet on forearm
-    const bracer = B.MeshBuilder.CreateCylinder(`bracer${side}`, {
-      diameter: 0.07 * S, height: 0.08 * S, tessellation: seg
-    }, scene);
-    bracer.position.set(sx * 1.1, shoulderY - armUp * S - armLow * S * 0.35, 0.01 * S);
-    bracer.material = accentMat;
-    bracer.parent = root;
-  }
-
-  // --- Belt ---
-  const belt = B.MeshBuilder.CreateCylinder("belt", {
-    diameter: waistW * S * 2.3, height: 0.04 * S, tessellation: seg
-  }, scene);
-  belt.position.y = waistY;
-  belt.material = accentMat;
-  belt.parent = root;
-
-  // --- Race-specific features (subtle, attached to body) ---
-  if (raceId === "dracor") {
-    // Horns — curved back
-    for (const side of [-1, 1]) {
-      const horn = B.MeshBuilder.CreateCylinder(`horn${side}`, {
-        diameterTop: 0, diameterBottom: 0.04 * S, height: 0.22 * S, tessellation: 12
-      }, scene);
-      horn.position.set(side * headR * S * 0.6, headY + headR * S * 0.8, -headR * S * 0.15);
-      horn.rotation.z = side * -0.3;
-      horn.rotation.x = 0.35;
-      horn.material = accentMat;
-      horn.parent = root;
-    }
-    // Spine ridges
-    for (let i = 0; i < 3; i++) {
-      const ridge = B.MeshBuilder.CreateSphere(`ridge${i}`, {
-        diameterX: 0.04 * S, diameterY: 0.025 * S, diameterZ: 0.03 * S, segments: 8
-      }, scene);
-      ridge.position.set(0, shoulderY - i * 0.1 * S, -shoulderW * S * 0.5);
-      ridge.material = accentMat;
-      ridge.parent = root;
-    }
-  } else if (raceId === "ironborn") {
-    // Brow plate
-    const brow = B.MeshBuilder.CreateBox("brow", {
-      width: headR * S * 2.4, height: headR * S * 0.4, depth: headR * S * 1.2
-    }, scene);
-    brow.position.set(0, headY + headR * S * 0.7, headR * S * 0.1);
-    brow.material = accentMat;
-    brow.parent = root;
-
-    // Chest plate
-    const plate = B.MeshBuilder.CreateBox("plate", {
-      width: shoulderW * S * 1.6, height: torsoH * S * 0.5, depth: 0.06 * S
-    }, scene);
-    plate.position.set(0, chestY + torsoH * S * 0.1, shoulderW * S * 0.5);
-    plate.material = accentMat;
-    plate.parent = root;
-  } else if (raceId === "sylvhari") {
-    // Pointed ears
-    for (const side of [-1, 1]) {
-      const ear = B.MeshBuilder.CreateCylinder(`ear${side}`, {
-        diameterTop: 0, diameterBottom: 0.025 * S, height: 0.18 * S, tessellation: 6
-      }, scene);
-      ear.position.set(side * headR * S * 0.95, headY + headR * S * 0.1, 0);
-      ear.rotation.z = side * -0.9;
-      ear.material = skinMat;
-      ear.parent = root;
-    }
-    // Leaf crown
-    const crown = B.MeshBuilder.CreateTorus("crown", {
-      diameter: headR * S * 2.6, thickness: 0.02 * S, tessellation: 24
-    }, scene);
-    crown.position.y = headY + headR * S * 0.8;
-    crown.rotation.x = Math.PI / 2;
-    crown.material = accentMat;
-    crown.parent = root;
-  } else if (raceId === "ashwalker") {
-    // Hood
-    const hood = B.MeshBuilder.CreateSphere("hood", {
-      diameterX: headR * S * 2.8, diameterY: headR * S * 2.2,
-      diameterZ: headR * S * 2.8, segments: 16, slice: 0.55
-    }, scene);
-    hood.position.set(0, headY + headR * S * 0.15, -headR * S * 0.3);
-    hood.rotation.x = -0.2;
-    const hoodMat = new B.StandardMaterial("hood", scene);
-    hoodMat.diffuseColor = new B.Color3(0.2, 0.16, 0.12);
-    hoodMat.specularColor = new B.Color3(0.05, 0.05, 0.05);
-    hood.material = hoodMat;
-    hood.parent = root;
-
-    // Bandolier strap
-    const strap = B.MeshBuilder.CreateBox("strap", {
-      width: 0.03 * S, height: torsoH * S * 1.2, depth: 0.015 * S
-    }, scene);
-    strap.position.set(shoulderW * S * 0.2, chestY, shoulderW * S * 0.3);
-    strap.rotation.z = 0.45;
-    strap.material = accentMat;
-    strap.parent = root;
-  } else if (raceId === "voidtouched") {
-    // Void halo
-    const halo = B.MeshBuilder.CreateTorus("halo", {
-      diameter: headR * S * 3.5, thickness: 0.015 * S, tessellation: 32
-    }, scene);
-    halo.position.y = headY + headR * S * 1.5;
-    halo.rotation.x = Math.PI / 2;
-    const haloMat = new B.StandardMaterial("haloM", scene);
-    haloMat.emissiveColor = new B.Color3(0.4, 0.1, 0.7);
-    haloMat.diffuseColor = new B.Color3(0, 0, 0);
-    haloMat.alpha = 0.7;
-    halo.material = haloMat;
-    halo.parent = root;
-
-    // Slight body transparency
-    root.getChildMeshes().forEach((m: any) => {
-      if (m.material && m !== halo) {
-        m.material = m.material.clone(m.material.name + "_v");
-        m.material.alpha = 0.9;
-      }
+    let min = new B.Vector3(Infinity, Infinity, Infinity);
+    let max = new B.Vector3(-Infinity, -Infinity, -Infinity);
+    result.meshes.forEach((m: any) => {
+      if (!m.getBoundingInfo) return;
+      const bi = m.getBoundingInfo();
+      min = B.Vector3.Minimize(min, bi.boundingBox.minimumWorld);
+      max = B.Vector3.Maximize(max, bi.boundingBox.maximumWorld);
     });
-  } else if (raceId === "bloodfane") {
-    // Long pointed ears
-    for (const side of [-1, 1]) {
-      const ear = B.MeshBuilder.CreateCylinder(`ear${side}`, {
-        diameterTop: 0, diameterBottom: 0.02 * S, height: 0.2 * S, tessellation: 6
-      }, scene);
-      ear.position.set(side * headR * S * 0.95, headY + headR * S * 0.15, 0);
-      ear.rotation.z = side * -0.85;
-      ear.material = skinMat;
-      ear.parent = root;
-    }
-    // Crimson circlet
-    const circlet = B.MeshBuilder.CreateTorus("circlet", {
-      diameter: headR * S * 2.3, thickness: 0.015 * S, tessellation: 24
-    }, scene);
-    circlet.position.y = headY + headR * S * 0.6;
-    circlet.rotation.x = Math.PI / 2;
-    circlet.material = accentMat;
-    circlet.parent = root;
-  } else if (raceId === "stoneguard") {
-    // Helmet brow
-    const helm = B.MeshBuilder.CreateBox("helm", {
-      width: headR * S * 2.5, height: headR * S * 0.5, depth: headR * S * 1.4
-    }, scene);
-    helm.position.set(0, headY + headR * S * 0.6, headR * S * 0.05);
-    helm.material = accentMat;
-    helm.parent = root;
-    // Beard (cone below chin)
-    const beard = B.MeshBuilder.CreateCylinder("beard", {
-      diameterTop: headR * S * 1.2, diameterBottom: 0.02 * S, height: 0.25 * S, tessellation: 8
-    }, scene);
-    beard.position.set(0, headY - headR * S * 1.0, headR * S * 0.3);
-    beard.material = skinMat;
-    beard.parent = root;
-    // Chest plate
-    const plate = B.MeshBuilder.CreateBox("sPlate", {
-      width: shoulderW * S * 1.8, height: torsoH * S * 0.5, depth: 0.07 * S
-    }, scene);
-    plate.position.set(0, chestY + torsoH * S * 0.1, shoulderW * S * 0.5);
-    plate.material = accentMat;
-    plate.parent = root;
-  } else if (raceId === "grukhar") {
-    // Tusks
-    for (const side of [-1, 1]) {
-      const tusk = B.MeshBuilder.CreateCylinder(`tusk${side}`, {
-        diameterTop: 0, diameterBottom: 0.03 * S, height: 0.12 * S, tessellation: 8
-      }, scene);
-      tusk.position.set(side * headR * S * 0.45, headY - headR * S * 0.5, headR * S * 0.75);
-      tusk.rotation.x = -0.3;
-      tusk.material = accentMat;
-      tusk.parent = root;
-    }
-    // Jaw ridge
-    const jaw = B.MeshBuilder.CreateBox("jaw", {
-      width: headR * S * 1.8, height: headR * S * 0.3, depth: headR * S * 0.5
-    }, scene);
-    jaw.position.set(0, headY - headR * S * 0.6, headR * S * 0.4);
-    jaw.material = skinMat;
-    jaw.parent = root;
-  } else if (raceId === "skrix") {
-    // Large pointed ears
-    for (const side of [-1, 1]) {
-      const ear = B.MeshBuilder.CreateCylinder(`ear${side}`, {
-        diameterTop: 0, diameterBottom: 0.035 * S, height: 0.22 * S, tessellation: 4
-      }, scene);
-      ear.position.set(side * headR * S * 1.0, headY + headR * S * 0.3, -headR * S * 0.1);
-      ear.rotation.z = side * -0.7;
-      ear.material = skinMat;
-      ear.parent = root;
-    }
-    // Goggles on forehead
-    const goggle = B.MeshBuilder.CreateTorus("goggle", {
-      diameter: headR * S * 1.4, thickness: 0.015 * S, tessellation: 16
-    }, scene);
-    goggle.position.set(0, headY + headR * S * 0.5, headR * S * 0.3);
-    goggle.rotation.x = Math.PI / 2.5;
-    goggle.material = accentMat;
-    goggle.parent = root;
+    const center = B.Vector3.Center(min, max);
+    const extent = max.subtract(min);
+    const maxDim = Math.max(extent.x, extent.y, extent.z);
+    const targetHeight = characterHeight * 1.2;
+    const scaleFactor = targetHeight / maxDim;
+    glbRoot.scaling = new B.Vector3(scaleFactor, scaleFactor, scaleFactor);
+    glbRoot.position.y = -min.y * scaleFactor;
+    glbRoot.position.x = -center.x * scaleFactor;
+    glbRoot.position.z = -center.z * scaleFactor;
+    return glbRoot;
   }
 
-  // --- Weapon in right hand ---
-  if (weapon) {
-    const handX = (shoulderW * S + 0.02 * S) * 1.12;
-    const handY = shoulderY - armUp * S - armLow * S;
-    const handZ = 0.02 * S;
-
-    const weaponMat = new B.StandardMaterial("weaponMat", scene);
-    weaponMat.specularColor = new B.Color3(0.6, 0.6, 0.6);
-    weaponMat.specularPower = 8;
-
-    // Weapon anchor parented to root — angled outward so it's visible
-    const weaponAnchor = new B.TransformNode("weaponAnchor", scene);
-    weaponAnchor.position.set(handX, handY, handZ);
-    weaponAnchor.rotation.x = -0.15;
-    weaponAnchor.rotation.z = 0.2;
-    weaponAnchor.parent = root;
-
-    if (weapon === "blade") {
-      weaponMat.diffuseColor = new B.Color3(0.65, 0.65, 0.7);
-      const blade = B.MeshBuilder.CreateBox("blade", {
-        width: 0.02 * S, height: 0.6 * S, depth: 0.006 * S
-      }, scene);
-      blade.position.y = 0.32 * S;
-      blade.material = weaponMat;
-      blade.parent = weaponAnchor;
-
-      const guard = B.MeshBuilder.CreateBox("guard", {
-        width: 0.14 * S, height: 0.012 * S, depth: 0.02 * S
-      }, scene);
-      guard.position.y = 0.02 * S;
-      guard.material = accentMat;
-      guard.parent = weaponAnchor;
-
-      const grip = B.MeshBuilder.CreateCylinder("grip", {
-        diameter: 0.022 * S, height: 0.1 * S, tessellation: 8
-      }, scene);
-      grip.position.y = -0.04 * S;
-      grip.material = darkMat;
-      grip.parent = weaponAnchor;
-
-      const pommel = B.MeshBuilder.CreateSphere("pommel", {
-        diameter: 0.03 * S, segments: 8
-      }, scene);
-      pommel.position.y = -0.09 * S;
-      pommel.material = accentMat;
-      pommel.parent = weaponAnchor;
-    } else if (weapon === "bow") {
-      weaponMat.diffuseColor = new B.Color3(0.4, 0.25, 0.12);
-
-      // Held in left hand instead — more natural
-      const bowAnchor = new B.TransformNode("bowAnchor", scene);
-      bowAnchor.position.set(-handX, handY + 0.1 * S, handZ);
-      bowAnchor.parent = root;
-
-      const bow = B.MeshBuilder.CreateTorus("bow", {
-        diameter: 0.5 * S, thickness: 0.016 * S, arc: 0.5, tessellation: 24
-      }, scene);
-      bow.rotation.z = Math.PI / 2;
-      bow.rotation.x = Math.PI / 2;
-      bow.material = weaponMat;
-      bow.parent = bowAnchor;
-
-      const string = B.MeshBuilder.CreateCylinder("bowstring", {
-        diameter: 0.003 * S, height: 0.48 * S, tessellation: 4
-      }, scene);
-      string.rotation.z = Math.PI / 2;
-      const stringMat = new B.StandardMaterial("stringMat", scene);
-      stringMat.diffuseColor = new B.Color3(0.85, 0.82, 0.75);
-      stringMat.emissiveColor = new B.Color3(0.08, 0.08, 0.08);
-      string.material = stringMat;
-      string.parent = bowAnchor;
-    } else if (weapon === "staff") {
-      weaponMat.diffuseColor = new B.Color3(0.35, 0.22, 0.1);
-
-      const staffAnchor = new B.TransformNode("staffAnchor", scene);
-      staffAnchor.position.set(handX, handY, handZ);
-      staffAnchor.rotation.z = 0.08;
-      staffAnchor.parent = root;
-
-      const pole = B.MeshBuilder.CreateCylinder("staff", {
-        diameterTop: 0.014 * S, diameterBottom: 0.024 * S, height: 1.3 * S, tessellation: 10
-      }, scene);
-      pole.position.y = 0.65 * S;
-      pole.material = weaponMat;
-      pole.parent = staffAnchor;
-
-      const orb = B.MeshBuilder.CreateSphere("staffOrb", {
-        diameter: 0.09 * S, segments: 16
-      }, scene);
-      orb.position.y = 1.32 * S;
-      const orbMat = new B.StandardMaterial("orbMat", scene);
-      orbMat.diffuseColor = new B.Color3(0.1, 0.05, 0.15);
-      orbMat.emissiveColor = new B.Color3(0.6, 0.3, 1.0);
-      orbMat.alpha = 0.9;
-      orb.material = orbMat;
-      orb.parent = staffAnchor;
-
-      const orbPulse = new B.Animation("orbPulse", "material.emissiveColor", 30,
-        B.Animation.ANIMATIONTYPE_COLOR3, B.Animation.ANIMATIONLOOPMODE_CYCLE);
-      orbPulse.setKeys([
-        { frame: 0, value: new B.Color3(0.6, 0.3, 1.0) },
-        { frame: 45, value: new B.Color3(0.9, 0.5, 1.0) },
-        { frame: 90, value: new B.Color3(0.6, 0.3, 1.0) },
-      ]);
-      orb.animations.push(orbPulse);
-      scene.beginAnimation(orb, 0, 90, true);
-
-      // Staff base touches ground
-      const ferrule = B.MeshBuilder.CreateSphere("ferrule", {
-        diameter: 0.03 * S, segments: 8
-      }, scene);
-      ferrule.position.y = 0;
-      ferrule.material = accentMat;
-      ferrule.parent = staffAnchor;
-    }
-  }
-
-  // --- Dragon Memory aura ---
-  if (memory) {
-    const memoryColors: Record<string, [number, number, number]> = {
-      ember: [1.0, 0.4, 0.0],
-      stone: [0.7, 0.55, 0.15],
-      storm: [0.2, 0.5, 1.0],
-    };
-    const mc = memoryColors[memory];
-    if (mc) {
-      // Aura sphere — subtle glow around character
-      const aura = B.MeshBuilder.CreateSphere("memoryAura", {
-        diameter: 2.0 * S, segments: 20
-      }, scene);
-      aura.position.y = hipY + torsoH * S * 0.5;
-      const auraMat = new B.StandardMaterial("auraMat", scene);
-      auraMat.diffuseColor = new B.Color3(0, 0, 0);
-      auraMat.emissiveColor = new B.Color3(mc[0] * 0.12, mc[1] * 0.12, mc[2] * 0.12);
-      auraMat.alpha = 0.08;
-      auraMat.backFaceCulling = false;
-      aura.material = auraMat;
-      aura.parent = root;
-
-      // Aura pulse animation
-      const auraPulse = new B.Animation("auraPulse", "material.alpha", 30,
-        B.Animation.ANIMATIONTYPE_FLOAT, B.Animation.ANIMATIONLOOPMODE_CYCLE);
-      auraPulse.setKeys([
-        { frame: 0, value: 0.05 },
-        { frame: 50, value: 0.12 },
-        { frame: 100, value: 0.05 },
-      ]);
-      aura.animations.push(auraPulse);
-      scene.beginAnimation(aura, 0, 100, true);
-
-      // Ground ring — glowing circle at feet
-      const ring = B.MeshBuilder.CreateTorus("memoryRing", {
-        diameter: 1.6 * S, thickness: 0.012, tessellation: 48
-      }, scene);
-      ring.position.y = 0.02;
-      ring.rotation.x = Math.PI / 2;
-      const ringMat = new B.StandardMaterial("ringMat", scene);
-      ringMat.diffuseColor = new B.Color3(0, 0, 0);
-      ringMat.emissiveColor = new B.Color3(mc[0] * 0.4, mc[1] * 0.4, mc[2] * 0.4);
-      ring.material = ringMat;
-      ring.parent = root;
-
-      // Ring slow rotation
-      const ringRot = new B.Animation("ringRot", "rotation.y", 30,
-        B.Animation.ANIMATIONTYPE_FLOAT, B.Animation.ANIMATIONLOOPMODE_CYCLE);
-      ringRot.setKeys([
-        { frame: 0, value: 0 },
-        { frame: 300, value: Math.PI * 2 },
-      ]);
-      ring.animations.push(ringRot);
-      scene.beginAnimation(ring, 0, 300, true);
-
-      // Colored point light to tint the character
-      const memLight = new B.PointLight("memLight", new B.Vector3(0, 1.5, 0.5), scene);
-      memLight.intensity = 0.4;
-      memLight.diffuse = new B.Color3(mc[0], mc[1], mc[2]);
-      memLight.range = 4;
-    }
-  }
-
-  // --- Subtle idle breathing ---
-  const breathAnim = new B.Animation("breath", "scaling.y", 30,
-    B.Animation.ANIMATIONTYPE_FLOAT, B.Animation.ANIMATIONLOOPMODE_CYCLE);
-  breathAnim.setKeys([
-    { frame: 0, value: 1.0 },
-    { frame: 60, value: 1.008 },
-    { frame: 120, value: 1.0 },
-  ]);
-  chest.animations.push(breathAnim);
-  scene.beginAnimation(chest, 0, 120, true);
-
+  const config = PROCEDURAL_CONFIGS[raceId];
+  const { root } = buildProceduralCharacter(B, scene, raceId, config);
   return root;
+}
+
+async function attachWeapon(
+  B: any, scene: any, weapon: WeaponType, raceId: RaceId,
+  rightHand: any, leftHand: any, characterHeight: number,
+  accentColor: [number, number, number],
+) {
+  const grip = WEAPON_GRIPS[weapon];
+  const raceAnchor = RACE_HAND_ANCHORS[raceId];
+  const handNode = grip.hand === "right" ? rightHand : leftHand;
+  const weaponGlb = WEAPON_GLB[weapon];
+  const H = characterHeight * 1.2;
+  const targetLen = grip.targetSize * H * raceAnchor.weaponScale;
+
+  let weaponRoot: any;
+
+  if (weaponGlb) {
+    await import("@babylonjs/loaders/glTF");
+    if (scene.isDisposed) return;
+    const result = await B.SceneLoader.ImportMeshAsync("", weaponGlb.dir, weaponGlb.file, scene);
+    if (scene.isDisposed) return;
+    weaponRoot = result.meshes[0];
+
+    let min = new B.Vector3(Infinity, Infinity, Infinity);
+    let max = new B.Vector3(-Infinity, -Infinity, -Infinity);
+    result.meshes.forEach((m: any) => {
+      if (!m.getBoundingInfo) return;
+      const bi = m.getBoundingInfo();
+      min = B.Vector3.Minimize(min, bi.boundingBox.minimumWorld);
+      max = B.Vector3.Maximize(max, bi.boundingBox.maximumWorld);
+    });
+    const extent = max.subtract(min);
+    const longestAxis = Math.max(extent.x, extent.y, extent.z);
+    const scale = targetLen / longestAxis;
+    weaponRoot.scaling = new B.Vector3(scale, scale, scale);
+
+    // Center the weapon at origin, then offset along Y so pivotY % is at origin.
+    // The weapon GLB might be oriented along any axis, but most blade-like assets are along Y.
+    // We use vertical extent for offset; if the weapon was modeled horizontally, the rotation in grip.rot corrects orientation.
+    const center = B.Vector3.Center(min, max);
+    weaponRoot.position.x = -center.x * scale;
+    weaponRoot.position.z = -center.z * scale;
+    weaponRoot.position.y = (-min.y - extent.y * grip.pivotY) * scale;
+  } else {
+    weaponRoot = buildProceduralWeapon(B, scene, handNode, weapon, accentColor);
+    weaponRoot.scaling = new B.Vector3(targetLen, targetLen, targetLen);
+  }
+
+  // Wrap in a pivot node so the grip transform can be applied independent of bbox correction.
+  const pivot = new B.TransformNode(`gripPivot_${weapon}`, scene);
+  pivot.parent = handNode;
+  pivot.position.set(grip.pos.x * H, grip.pos.y * H, grip.pos.z * H);
+  pivot.rotation.set(grip.rot.x, grip.rot.y, grip.rot.z);
+
+  if (weaponGlb) {
+    weaponRoot.parent = pivot;
+  } else {
+    // procedural was already parented to handNode — reparent under pivot
+    weaponRoot.parent = pivot;
+  }
+}
+
+function attachMemoryAura(B: any, scene: any, root: any, memory: "ember" | "stone" | "storm", characterHeight: number) {
+  const memoryColors: Record<string, [number, number, number]> = {
+    ember: [1.0, 0.4, 0.0],
+    stone: [0.7, 0.55, 0.15],
+    storm: [0.2, 0.5, 1.0],
+  };
+  const mc = memoryColors[memory];
+  if (!mc) return;
+  const H = characterHeight * 1.2;
+
+  const aura = B.MeshBuilder.CreateSphere("memoryAura", { diameter: 1.1 * H, segments: 20 }, scene);
+  aura.position.y = H * 0.5;
+  const auraMat = new B.StandardMaterial("auraMat", scene);
+  auraMat.diffuseColor = new B.Color3(0, 0, 0);
+  auraMat.emissiveColor = new B.Color3(mc[0] * 0.12, mc[1] * 0.12, mc[2] * 0.12);
+  auraMat.alpha = 0.08;
+  auraMat.backFaceCulling = false;
+  aura.material = auraMat;
+  aura.parent = root;
+
+  const auraPulse = new B.Animation("auraPulse", "material.alpha", 30,
+    B.Animation.ANIMATIONTYPE_FLOAT, B.Animation.ANIMATIONLOOPMODE_CYCLE);
+  auraPulse.setKeys([
+    { frame: 0, value: 0.05 },
+    { frame: 50, value: 0.12 },
+    { frame: 100, value: 0.05 },
+  ]);
+  aura.animations.push(auraPulse);
+  scene.beginAnimation(aura, 0, 100, true);
+
+  const ring = B.MeshBuilder.CreateTorus("memoryRing", {
+    diameter: 0.9 * H, thickness: 0.012, tessellation: 48,
+  }, scene);
+  ring.position.y = 0.02;
+  ring.rotation.x = Math.PI / 2;
+  const ringMat = new B.StandardMaterial("ringMat", scene);
+  ringMat.diffuseColor = new B.Color3(0, 0, 0);
+  ringMat.emissiveColor = new B.Color3(mc[0] * 0.4, mc[1] * 0.4, mc[2] * 0.4);
+  ring.material = ringMat;
+  ring.parent = root;
+
+  const ringRot = new B.Animation("ringRot", "rotation.y", 30,
+    B.Animation.ANIMATIONTYPE_FLOAT, B.Animation.ANIMATIONLOOPMODE_CYCLE);
+  ringRot.setKeys([{ frame: 0, value: 0 }, { frame: 300, value: Math.PI * 2 }]);
+  ring.animations.push(ringRot);
+  scene.beginAnimation(ring, 0, 300, true);
+
+  const memLight = new B.PointLight("memLight", new B.Vector3(0, 1.5, 0.5), scene);
+  memLight.intensity = 0.4;
+  memLight.diffuse = new B.Color3(mc[0], mc[1], mc[2]);
+  memLight.range = 4;
 }

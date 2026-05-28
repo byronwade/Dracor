@@ -54,8 +54,13 @@ export function computeSkyState(
 
   const ground = lerpColor(GROUND_NIGHT, GROUND_DAY, daylight);
 
+  // Use raw (unclamped) altitudes so the sun/moon direction goes below the
+  // horizon at night instead of being pinned to altitude=0.
+  const sunAltRaw = Math.sin(Math.PI * (time.worldTime - 0.25) / 0.5) * 70;
+  const moonAltRaw = -sunAltRaw + 10;
+
   const sunAzRad = time.sunAngle * DEG_TO_RAD;
-  const sunAltRad = time.sunAltitude * DEG_TO_RAD;
+  const sunAltRad = sunAltRaw * DEG_TO_RAD;
   const cosAlt = Math.cos(sunAltRad);
   const sunDirection = {
     x: -(cosAlt * Math.cos(sunAzRad)),
@@ -64,7 +69,7 @@ export function computeSkyState(
   };
 
   const moonAzRad = time.moonAngle * DEG_TO_RAD;
-  const moonAltRad = time.moonAltitude * DEG_TO_RAD;
+  const moonAltRad = moonAltRaw * DEG_TO_RAD;
   const cosMoonAlt = Math.cos(moonAltRad);
   const moonDirection = {
     x: -(cosMoonAlt * Math.cos(moonAzRad)),

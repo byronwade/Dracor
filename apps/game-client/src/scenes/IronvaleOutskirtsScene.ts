@@ -14,8 +14,8 @@ import '@babylonjs/core/Meshes/Builders/boxBuilder';
 import '@babylonjs/core/Meshes/Builders/planeBuilder';
 
 import { StreamingManager, type StreamingSceneResult } from '../streaming/StreamingManager';
-import { createSky } from '../world/createSky';
 import { createDistantMountains } from '../world/createDistantMountains';
+import { createWater, addToWaterReflectionList, resetSharedWaterMaterial } from '../world/createWater';
 
 // ─── Locally-embedded types (from workspace packages, not imported at runtime) ───
 
@@ -577,11 +577,19 @@ export async function buildIronvaleOutskirtsScene(
   // Deferred enhancers — load after first frame so game starts fast
   scene.onAfterRenderObservable.addOnce(async () => {
     try {
-      const { runEnhancers, SkyEnhancer, HDREnvEnhancer, ShadowsEnhancer, PostProcessEnhancer } = await import('./enhancers');
+      const {
+        runEnhancers,
+        SkyEnhancer,
+        HDREnvEnhancer,
+        ShadowsEnhancer,
+        SSAOEnhancer,
+        PostProcessEnhancer,
+      } = await import('./enhancers');
       const enhancers = await runEnhancers({ scene, quality }, [
         new SkyEnhancer(),
         new HDREnvEnhancer(),
         new ShadowsEnhancer(),
+        new SSAOEnhancer(),
         new PostProcessEnhancer(),
       ]);
       (scene as any).__enhancers = enhancers;
@@ -593,7 +601,7 @@ export async function buildIronvaleOutskirtsScene(
 
   console.log('[Scene] Creating atmosphere...');
   const atmosphereEngine = createAtmosphereEngine({
-    initialTime: 0.38,
+    initialTime: 0.5,
     dayLengthMinutes: 20,
     weatherSeed: 42,
     biomeId: 'forest',
@@ -602,10 +610,6 @@ export async function buildIronvaleOutskirtsScene(
   const atmosphereRenderer = new BabylonAtmosphereRenderer(scene);
   atmosphereRenderer.update(atmosphereEngine.getState());
   console.log('[Scene] Atmosphere ready');
-
-  console.log('[Scene] Creating sky dome...');
-  createSky(scene);
-  console.log('[Scene] Sky dome ready');
 
   console.log('[Scene] Creating streaming manager...');
   const streamingManager = new StreamingManager(scene, quality, IRONVALE_OUTSKIRTS);
@@ -619,8 +623,43 @@ export async function buildIronvaleOutskirtsScene(
   const streamResult = await streamingManager.loadInitialArea(spawnPos);
   console.log('[Scene] Initial terrain loaded');
 
-  createDistantMountains(scene);
+  const mountains = createDistantMountains(scene);
   console.log('[Scene] Distant mountains created');
+
+  // Water bodies use manifest Y directly — getHeightAt is async-warming-up at this point
+  resetSharedWaterMaterial();
+  for (const water of IRONVALE_OUTSKIRTS.water) {
+    createWater(water, scene);
+  }
+  console.log(`[Scene] ${IRONVALE_OUTSKIRTS.water.length} water bodies created`);
+
+  // Wire reflection list — environment, mountains, terrain, plus anything tagged
+  // via metadata (foliage, rocks). Don't enumerate name patterns since GLB-loaded
+  // meshes have unpredictable names.
+  const reflectsByName = (n: string): boolean =>
+    n === 'skyDome' ||
+    n === 'distMountainsFar' || n === 'distMountainsMid' || n === 'distMountainsNear' ||
+    n.startsWith('distSnowCap_') ||
+    n.startsWith('terrain_') ||
+    n.startsWith('landmark_') ||
+    n.startsWith('shrine_');
+
+  const shouldReflect = (m: any): boolean => {
+    const meta = m.metadata as { reflectsInWater?: boolean } | null | undefined;
+    if (meta?.reflectsInWater) return true;
+    return reflectsByName(m.name);
+  };
+
+  scene.onNewMeshAddedObservable.add((m) => {
+    if (shouldReflect(m)) addToWaterReflectionList(m as any);
+  });
+  // Wire up already-existing meshes
+  for (const m of scene.meshes) {
+    if (shouldReflect(m)) addToWaterReflectionList(m as any);
+  }
+  if (mountains) {
+    for (const child of mountains.getChildMeshes()) addToWaterReflectionList(child as any);
+  }
 
   return {
     scene,

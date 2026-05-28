@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { getCharactersByUser } from "@dracor/database";
 import { AuthGuard } from "@/components/AuthGuard";
 
 interface Character {
@@ -78,52 +79,69 @@ function AccountCharactersContent() {
   const [characters, setCharacters] = useState<Character[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingMock, setUsingMock] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadCharacters() {
-      const supabase = getSupabaseClient();
+    loadCharacters();
+  }, []);
 
-      if (!supabase) {
-        setCharacters(MOCK_CHARACTERS);
-        setUsingMock(true);
+  async function loadCharacters() {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setCharacters(MOCK_CHARACTERS);
+      setUsingMock(true);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
         setLoading(false);
         return;
       }
 
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          setLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("characters")
-          .select("id, name, level, weapon, memory, zone_id")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false });
-
-        if (error) {
-          console.error("Error loading characters:", error);
-          setCharacters(MOCK_CHARACTERS);
-          setUsingMock(true);
-        } else {
-          setCharacters(data || []);
-        }
-      } catch (err) {
-        console.error("Failed to load characters:", err);
-        setCharacters(MOCK_CHARACTERS);
-        setUsingMock(true);
-      }
-
-      setLoading(false);
+      const data = await getCharactersByUser(supabase, user.id);
+      setCharacters(data || []);
+    } catch (err) {
+      console.error("Failed to load characters:", err);
+      setLoadError("Failed to load characters. Please try again.");
     }
 
-    loadCharacters();
-  }, []);
+    setLoading(false);
+  }
+
+  async function handleDelete(characterId: string) {
+    if (usingMock) {
+      setCharacters((prev) => prev.filter((c) => c.id !== characterId));
+      setConfirmDelete(null);
+      return;
+    }
+
+    setDeleting(characterId);
+    const supabase = getSupabaseClient();
+    if (!supabase) { setDeleting(null); return; }
+
+    const { error } = await supabase
+      .from("characters")
+      .delete()
+      .eq("id", characterId);
+
+    if (error) {
+      console.error("Failed to delete character:", error);
+    } else {
+      setCharacters((prev) => prev.filter((c) => c.id !== characterId));
+    }
+
+    setDeleting(null);
+    setConfirmDelete(null);
+  }
 
   if (loading) {
     return (
@@ -131,6 +149,23 @@ function AccountCharactersContent() {
         <div className="text-center">
           <div className="mb-4 text-4xl animate-pulse">🐉</div>
           <p className="text-stone-400">Loading characters...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 pt-20 pb-12">
+        <div className="card-dark flex flex-col items-center py-16 text-center">
+          <div className="mb-4 text-5xl">&#9888;</div>
+          <h2 className="mb-2 text-xl font-semibold text-stone-100">
+            Something Went Wrong
+          </h2>
+          <p className="mb-6 text-stone-400">{loadError}</p>
+          <button onClick={() => { setLoadError(null); setLoading(true); loadCharacters(); }} className="btn-primary">
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -209,13 +244,41 @@ function AccountCharactersContent() {
                 </div>
               </div>
 
-              <div className="mt-auto pt-4">
+              <div className="mt-auto flex gap-2 pt-4">
                 <Link
-                  href={`/play?name=${encodeURIComponent(character.name)}`}
-                  className="btn-primary w-full text-center text-sm"
+                  href={`/play?characterId=${encodeURIComponent(character.id)}&name=${encodeURIComponent(character.name)}`}
+                  className="btn-primary flex-1 text-center text-sm"
                 >
-                  Select &amp; Play
+                  Play
                 </Link>
+
+                {confirmDelete === character.id ? (
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => handleDelete(character.id)}
+                      disabled={deleting === character.id}
+                      className="rounded border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      {deleting === character.id ? "..." : "Yes"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(null)}
+                      className="rounded border border-stone-700 bg-stone-800 px-3 py-2 text-xs font-medium text-stone-400 transition-colors hover:bg-stone-700"
+                    >
+                      No
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDelete(character.id)}
+                    className="rounded border border-stone-700 bg-stone-800 px-3 py-2 text-xs text-stone-500 transition-colors hover:border-red-500/50 hover:text-red-400"
+                    title="Delete character"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           ))}

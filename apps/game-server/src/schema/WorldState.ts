@@ -7,6 +7,6 @@ export class WorldState extends Schema {
   @type([ChatState]) messages = new ArraySchema<ChatState>();
   @type("uint64") worldTime: number = 0;
   @type("uint32") tick: number = 0;
-  @type("string") currentZone: string = "ironvale_town";
+  @type("string") currentZone: string = "ironvale_outskirts";
   @type("string") zoneName: string = "Ironvale";
 }

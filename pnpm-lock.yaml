@@ -133,6 +133,9 @@ importers:
       '@babylonjs/core':
         specifier: ^7.0.0
         version: 7.54.3
+      '@babylonjs/loaders':
+        specifier: ^7.0.0
+        version: 7.54.3(@babylonjs/core@7.54.3)(babylonjs-gltf2interface@7.54.3)
       '@babylonjs/materials':
         specifier: ^7.0.0
         version: 7.54.3(@babylonjs/core@7.54.3)
@@ -154,6 +157,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.39.0
         version: 2.106.2
+      babylonjs-gltf2interface:
+        specifier: ^7.0.0
+        version: 7.54.3
       next:
         specifier: ^14.2.0
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -472,6 +478,12 @@ packages:
       react: '>=16.14.0 <20.0.0'
       react-dom: '>=16.14.0 <20.0.0'
       usehooks-ts: ^3.1.1
+
+  '@babylonjs/loaders@7.54.3':
+    resolution: {integrity: sha512-RBPmOsaMTxi6Ga08ueLTm6Tnvx/l2nNQigucubvrngZ7muwn5/ubfcStckkI1c0qvhR1+/FFlD54do7gZ1pnsQ==}
+    peerDependencies:
+      '@babylonjs/core': ^7.0.0
+      babylonjs-gltf2interface: ^7.0.0
 
   '@babylonjs/loaders@9.9.1':
     resolution: {integrity: sha512-7AKGcORJsEZCHK88+C5JXZIoTp922QPZVemfWfcrlk7D5eSbqQakEXd3FA61pVVLuP2WLlXaOYHkU2oL5VabDw==}
@@ -1968,6 +1980,9 @@ packages:
     peerDependencies:
       postcss: ^8.1.0
 
+  babylonjs-gltf2interface@7.54.3:
+    resolution: {integrity: sha512-ZAWYFyE+SOczfWT19O4e3YRkCZ5i57SiD2eK2kqc+Tow/t9X1S45xgSFNuHZff++dd5BlVIEQDSnFV+McFLSnQ==}
+
   babylonjs-gltf2interface@9.9.1:
     resolution: {integrity: sha512-qHE7pASEWbRORU+NEPSSL9fyVh6gBNqC1ugV94YL9Dz0HnLcH8YNcxdi6Pf+oXgFHRrXWZiJATn37HynsF7/0g==}
 
@@ -2966,6 +2981,11 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       usehooks-ts: 3.1.1(react@18.3.1)
+
+  '@babylonjs/loaders@7.54.3(@babylonjs/core@7.54.3)(babylonjs-gltf2interface@7.54.3)':
+    dependencies:
+      '@babylonjs/core': 7.54.3
+      babylonjs-gltf2interface: 7.54.3
 
   '@babylonjs/loaders@9.9.1(@babylonjs/core@9.9.1)(babylonjs-gltf2interface@9.9.1)':
     dependencies:
@@ -4867,6 +4887,8 @@ snapshots:
       picocolors: 1.1.1
       postcss: 8.5.15
       postcss-value-parser: 4.2.0
+
+  babylonjs-gltf2interface@7.54.3: {}
 
   babylonjs-gltf2interface@9.9.1: {}
 

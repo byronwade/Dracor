@@ -7,6 +7,8 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 
 const NAV_LINKS = [
   { href: "/world", label: "World" },
+  { href: "/races", label: "Races" },
+  { href: "/armory", label: "Armory" },
   { href: "/technology", label: "Technology" },
   { href: "/account", label: "Account" },
   { href: "/play", label: "Play" },
@@ -29,24 +31,24 @@ export function Navbar() {
   }, []);
 
   useEffect(() => {
+    let subscription: { unsubscribe: () => void } | undefined;
+
     async function checkAuth() {
       const supabase = getSupabaseClient();
       if (!supabase) {
         setIsLoggedIn(false);
         return;
       }
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setIsLoggedIn(!!session);
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsLoggedIn(!!user);
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange((_event, session) => {
         setIsLoggedIn(!!session);
       });
-      return () => subscription.unsubscribe();
+      subscription = sub;
     }
+
     checkAuth();
+    return () => { subscription?.unsubscribe(); };
   }, []);
 
   async function handleLogout() {
@@ -59,7 +61,7 @@ export function Navbar() {
   }
 
   const isHome = pathname === "/";
-  const isFullscreenPage = pathname === "/characters/new";
+  const isFullscreenPage = pathname === "/characters/new" || pathname === "/account/characters/new";
 
   if (isFullscreenPage) return null;
 
@@ -106,7 +108,7 @@ export function Navbar() {
               </button>
             ) : (
               <Link
-                href="/login"
+                href="/account/login"
                 className="text-xs font-medium uppercase tracking-nav text-content-muted transition-colors hover:text-content-primary"
               >
                 Login
@@ -157,7 +159,7 @@ export function Navbar() {
               </button>
             ) : (
               <Link
-                href="/login"
+                href="/account/login"
                 onClick={() => setMobileMenuOpen(false)}
                 className="text-lg font-medium uppercase tracking-headline text-content-muted transition-colors hover:text-content-primary"
               >

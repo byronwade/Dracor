@@ -7,6 +7,7 @@ import {
 } from './IronvaleOutskirtsScene';
 import type { AtmosphereEngine } from '@dracor/atmosphere';
 import type { BabylonAtmosphereRenderer } from '../atmosphere/BabylonAtmosphereRenderer';
+import type { StreamingManager } from '../streaming/StreamingManager';
 
 export type SceneName = 'ironvale_outskirts';
 
@@ -16,6 +17,7 @@ export interface SceneBuildResult {
   atmosphereEngine: AtmosphereEngine;
   atmosphereRenderer: BabylonAtmosphereRenderer;
   updateWind: (dt: number) => void;
+  streamingManager: StreamingManager;
 }
 
 type SceneBuilder = (engine: Engine, quality: QualitySettings) => Promise<SceneBuildResult>;
@@ -29,6 +31,7 @@ const SCENE_BUILDERS: Record<SceneName, SceneBuilder> = {
       atmosphereEngine: result.atmosphereEngine,
       atmosphereRenderer: result.atmosphereRenderer,
       updateWind: result.updateWind,
+      streamingManager: result.streamingManager,
     };
   },
 };

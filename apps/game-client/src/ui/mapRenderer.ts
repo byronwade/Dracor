@@ -1,6 +1,13 @@
+import { createNoise2D } from 'simplex-noise';
+import { getHydrology, getMoistureAt, type RiverPath, type LakeBody } from './mapHydrology';
+
 const WORLD_MIN = -250;
 const WORLD_MAX = 250;
 const WORLD_RANGE = WORLD_MAX - WORLD_MIN;
+
+const _n1 = createNoise2D(() => 0.42);
+const _n2 = createNoise2D(() => 0.73);
+const _n3 = createNoise2D(() => 0.19);
 
 const ROAD_POINTS = [
   { x: -220, z: -200 }, { x: -160, z: -140 }, { x: -100, z: -80 },
@@ -14,69 +21,10 @@ const LANDMARKS: Array<{ x: number; z: number; type: string; name: string }> = [
   { x: 100, z: 120, type: 'bridge', name: 'Ashwood Crossing' },
 ];
 
-interface WaterBody {
-  type: 'lake' | 'pond';
-  cx: number; cz: number;
-  rx: number; rz: number;
-  rotation: number;
-  depth: number;
-  name?: string;
+function getWaterData(): { rivers: RiverPath[]; lakes: LakeBody[] } {
+  const h = getHydrology();
+  return { rivers: h.rivers, lakes: h.lakes };
 }
-
-interface RiverSegment {
-  points: Array<{ x: number; z: number }>;
-  widthStart: number;
-  widthEnd: number;
-  name?: string;
-}
-
-const WATER_BODIES: WaterBody[] = [
-  { type: 'lake', cx: 140, cz: -80, rx: 35, rz: 22, rotation: 0.3, depth: 0.9, name: 'Ashenmere' },
-  { type: 'pond', cx: -90, cz: 140, rx: 14, rz: 11, rotation: -0.2, depth: 0.6, name: 'Stillwater Hollow' },
-  { type: 'pond', cx: -200, cz: -60, rx: 10, rz: 8, rotation: 0.1, depth: 0.5 },
-];
-
-const RIVERS: RiverSegment[] = [
-  {
-    points: [
-      { x: -220, z: -220 }, { x: -190, z: -180 }, { x: -165, z: -130 },
-      { x: -140, z: -90 }, { x: -110, z: -50 }, { x: -90, z: -10 },
-      { x: -80, z: 30 }, { x: -85, z: 70 }, { x: -90, z: 110 },
-      { x: -90, z: 140 },
-    ],
-    widthStart: 2, widthEnd: 5,
-    name: 'Ironflow River',
-  },
-  {
-    points: [
-      { x: -90, z: -10 }, { x: -50, z: 10 }, { x: -10, z: 40 },
-      { x: 30, z: 55 }, { x: 70, z: 50 }, { x: 100, z: 30 },
-      { x: 130, z: -10 }, { x: 140, z: -50 }, { x: 140, z: -80 },
-    ],
-    widthStart: 3, widthEnd: 6,
-  },
-  {
-    points: [
-      { x: 140, z: -80 }, { x: 155, z: -40 }, { x: 170, z: 10 },
-      { x: 180, z: 60 }, { x: 195, z: 110 }, { x: 220, z: 160 },
-    ],
-    widthStart: 5, widthEnd: 8,
-  },
-  {
-    points: [
-      { x: -165, z: -130 }, { x: -185, z: -100 }, { x: -200, z: -60 },
-    ],
-    widthStart: 1.5, widthEnd: 3,
-    name: 'Cliff Creek',
-  },
-  {
-    points: [
-      { x: -80, z: 30 }, { x: -55, z: 50 }, { x: -30, z: 80 },
-      { x: -10, z: 110 }, { x: 10, z: 140 }, { x: 40, z: 170 },
-    ],
-    widthStart: 1, widthEnd: 2,
-  },
-];
 
 const BIOME_REGIONS: Array<{
   name: string; cx: number; cz: number; radius: number;
@@ -97,16 +45,27 @@ function sampleHeight(x: number, z: number): number {
 }
 
 function noise2d(x: number, z: number): number {
-  return (Math.sin(x * 0.037 + z * 0.051) * 0.5 + 0.5)
-    * (Math.sin(x * 0.091 - z * 0.067 + 2.1) * 0.5 + 0.5);
+  return _n1(x, z) * 0.5 + 0.5;
 }
 
 function fbmNoise(x: number, z: number): number {
-  let v = 0;
-  v += (Math.sin(x * 0.013 + z * 0.017) * 0.5 + 0.5) * 0.5;
-  v += (Math.sin(x * 0.029 - z * 0.023 + 1.3) * 0.5 + 0.5) * 0.25;
-  v += (Math.sin(x * 0.061 + z * 0.053 + 3.7) * 0.5 + 0.5) * 0.125;
-  v += (Math.sin(x * 0.11 - z * 0.097 + 5.1) * 0.5 + 0.5) * 0.0625;
+  let v = 0, amp = 0.5, freq = 1;
+  for (let i = 0; i < 5; i++) {
+    v += (_n2(x * freq, z * freq) * 0.5 + 0.5) * amp;
+    amp *= 0.5;
+    freq *= 2.1;
+  }
+  return v / 0.96875;
+}
+
+function ridgedNoise(x: number, z: number): number {
+  let v = 0, amp = 0.5, freq = 1;
+  for (let i = 0; i < 4; i++) {
+    const n = 1 - Math.abs(_n3(x * freq, z * freq));
+    v += n * n * amp;
+    amp *= 0.5;
+    freq *= 2.0;
+  }
   return v / 0.9375;
 }
 
@@ -136,8 +95,9 @@ function distToPolyline(wx: number, wz: number, pts: Array<{ x: number; z: numbe
 }
 
 function getWaterProximity(wx: number, wz: number): number {
+  const { rivers, lakes } = getWaterData();
   let closest = Infinity;
-  for (const b of WATER_BODIES) {
+  for (const b of lakes) {
     const cos = Math.cos(-b.rotation), sin = Math.sin(-b.rotation);
     const lx = (wx - b.cx) * cos - (wz - b.cz) * sin;
     const lz = (wx - b.cx) * sin + (wz - b.cz) * cos;
@@ -145,7 +105,7 @@ function getWaterProximity(wx: number, wz: number): number {
     const dist = (d - 1) * Math.min(b.rx, b.rz);
     if (dist < closest) closest = dist;
   }
-  for (const river of RIVERS) {
+  for (const river of rivers) {
     const d = distToPolyline(wx, wz, river.points);
     const avgW = (river.widthStart + river.widthEnd) / 2;
     const dist = d - avgW;
@@ -155,13 +115,14 @@ function getWaterProximity(wx: number, wz: number): number {
 }
 
 function isInWater(wx: number, wz: number): boolean {
-  for (const b of WATER_BODIES) {
+  const { rivers, lakes } = getWaterData();
+  for (const b of lakes) {
     const cos = Math.cos(-b.rotation), sin = Math.sin(-b.rotation);
     const lx = (wx - b.cx) * cos - (wz - b.cz) * sin;
     const lz = (wx - b.cx) * sin + (wz - b.cz) * cos;
     if ((lx / b.rx) ** 2 + (lz / b.rz) ** 2 <= 1) return true;
   }
-  for (const river of RIVERS) {
+  for (const river of rivers) {
     for (let i = 0; i < river.points.length - 1; i++) {
       const a = river.points[i], b = river.points[i + 1];
       const dx = b.x - a.x, dz = b.z - a.z;
@@ -227,16 +188,25 @@ function getRockiness(wx: number, wz: number, height: number, heightNorm: number
   const cliffDx = wx + 180, cliffDz = wz + 120;
   const cliffDist = Math.sqrt(cliffDx * cliffDx + cliffDz * cliffDz);
   let rock = 0;
-  if (cliffDist < 70) rock = (1 - cliffDist / 70) * 0.8;
+  if (cliffDist < 70) {
+    const cliffNoise = ridgedNoise(wx * 0.03, wz * 0.03);
+    rock = (1 - cliffDist / 70) * (0.5 + cliffNoise * 0.5);
+  }
 
   const slope = Math.abs(
     sampleHeight(wx + 2, wz) - sampleHeight(wx - 2, wz)
   ) + Math.abs(
     sampleHeight(wx, wz + 2) - sampleHeight(wx, wz - 2)
   );
-  if (slope > 1.5) rock = Math.max(rock, Math.min(1, (slope - 1.5) / 3));
+  if (slope > 1.2) {
+    const slopeRock = Math.min(1, (slope - 1.2) / 2.5);
+    rock = Math.max(rock, slopeRock * (0.6 + ridgedNoise(wx * 0.05, wz * 0.05) * 0.4));
+  }
 
-  if (heightNorm > 0.75) rock = Math.max(rock, (heightNorm - 0.75) * 2);
+  if (heightNorm > 0.7) {
+    const peakRock = (heightNorm - 0.7) * 2.5;
+    rock = Math.max(rock, peakRock * (0.5 + noise2d(wx * 0.04, wz * 0.04) * 0.5));
+  }
 
   return Math.min(1, rock);
 }
@@ -296,31 +266,37 @@ export function renderTerrainLayer(ctx: CanvasRenderingContext2D, size: number):
       let red: number, grn: number, blu: number;
 
       if (inWater) {
-        const wn = noise2d(wx * 0.8, wz * 0.8);
-        const depthVar = 0.85 + wn * 0.3;
-        red = 18 * depthVar + hn * 8;
-        grn = 40 * depthVar + hn * 15;
-        blu = 58 * depthVar + hn * 20;
+        const waterDepth = fbmNoise(wx * 0.02, wz * 0.02);
+        const waterRipple = noise2d(wx * 0.08, wz * 0.08);
+        const depthMul = 0.75 + waterDepth * 0.5;
+        red = 15 * depthMul + waterRipple * 8;
+        grn = 35 * depthMul + waterRipple * 12 + hn * 8;
+        blu = 55 * depthMul + waterRipple * 15 + hn * 10;
 
-        const specular = noise2d(wx * 3 + 77, wz * 3 + 33);
-        if (specular > 0.7) {
-          const sp = (specular - 0.7) * 3.3;
-          red += sp * 12;
-          grn += sp * 15;
-          blu += sp * 20;
+        const caustics = ridgedNoise(wx * 0.06, wz * 0.06);
+        if (caustics > 0.5) {
+          const sp = (caustics - 0.5) * 2;
+          red += sp * 8;
+          grn += sp * 12;
+          blu += sp * 18;
         }
       } else {
-        const groundR = 55 + hn * 40;
-        const groundG = 48 + hn * 30;
-        const groundB = 30 + hn * 20;
+        const soilVar = fbmNoise(wx * 0.015, wz * 0.015);
+        const groundR = 50 + hn * 40 + soilVar * 20;
+        const groundG = 42 + hn * 30 + soilVar * 12;
+        const groundB = 26 + hn * 18 + soilVar * 6;
 
-        const forestR = 22 + hn * 20 + fbmNoise(wx * 2, wz * 2) * 15;
-        const forestG = 38 + hn * 30 + fbmNoise(wx * 2 + 100, wz * 2) * 20;
-        const forestB = 18 + hn * 12;
+        const canopyVar = fbmNoise(wx * 0.025, wz * 0.025);
+        const underVar = noise2d(wx * 0.06, wz * 0.06);
+        const forestR = 18 + hn * 18 + canopyVar * 20;
+        const forestG = 32 + hn * 32 + canopyVar * 25 + underVar * 10;
+        const forestB = 14 + hn * 10 + canopyVar * 5;
 
-        const rockR = 75 + hn * 40 + noise2d(wx * 3, wz * 3) * 15;
-        const rockG = 72 + hn * 35 + noise2d(wx * 3 + 50, wz * 3) * 12;
-        const rockB = 65 + hn * 30;
+        const rockVar = ridgedNoise(wx * 0.04, wz * 0.04);
+        const lichVar = fbmNoise(wx * 0.07 + 50, wz * 0.07);
+        const rockR = 70 + hn * 35 + rockVar * 25;
+        const rockG = 68 + hn * 30 + rockVar * 20 + lichVar * 8;
+        const rockB = 60 + hn * 28 + rockVar * 15;
 
         red = groundR;
         grn = groundG;
@@ -347,6 +323,14 @@ export function renderTerrainLayer(ctx: CanvasRenderingContext2D, size: number):
           blu = blu * (1 - marsh) + 35 * marsh;
         }
 
+        const moist = getMoistureAt(wx, wz);
+        if (moist > 0.05) {
+          const m = Math.min(moist * 0.6, 0.35);
+          red = red * (1 - m) + 25 * m;
+          grn = grn * (1 - m) + (grn + 15) * m;
+          blu = blu * (1 - m) + 30 * m;
+        }
+
         if (roadDist < 12) {
           const roadT = 1 - roadDist / 12;
           const roadMix = roadT * roadT * 0.6;
@@ -363,10 +347,10 @@ export function renderTerrainLayer(ctx: CanvasRenderingContext2D, size: number):
         blu *= shade;
       }
 
-      const microNoise = noise2d(wx * 5, wz * 5) * 6 - 3;
-      red += microNoise;
-      grn += microNoise * 0.8;
-      blu += microNoise * 0.5;
+      const micro = _n1(wx * 0.3, wz * 0.3) * 4;
+      red += micro;
+      grn += micro * 0.8;
+      blu += micro * 0.5;
 
       for (let py = r * step; py < Math.min((r + 1) * step, size); py++) {
         for (let pixX = c * step; pixX < Math.min((c + 1) * step, size); pixX++) {
@@ -417,9 +401,10 @@ export function renderParchmentOverlay(ctx: CanvasRenderingContext2D, size: numb
 }
 
 export function renderWaterOverlay(ctx: CanvasRenderingContext2D, size: number, showLabels: boolean): void {
+  const { rivers, lakes } = getWaterData();
   const scale = size >= 600 ? 1 : 0.5;
 
-  for (const body of WATER_BODIES) {
+  for (const body of lakes) {
     const cx = w2c(body.cx, size);
     const cz = w2c(body.cz, size);
     const rx = (body.rx / WORLD_RANGE) * size;
@@ -451,12 +436,12 @@ export function renderWaterOverlay(ctx: CanvasRenderingContext2D, size: number, 
     }
   }
 
-  for (const river of RIVERS) {
+  for (const river of rivers) {
     if (!showLabels || !river.name) continue;
-    const mid = river.points[Math.floor(river.points.length / 2)];
-    const i = Math.floor(river.points.length / 2);
-    const prev = river.points[Math.max(0, i - 1)];
-    const next = river.points[Math.min(river.points.length - 1, i + 1)];
+    const midIdx = Math.floor(river.points.length / 2);
+    const mid = river.points[midIdx];
+    const prev = river.points[Math.max(0, midIdx - 1)];
+    const next = river.points[Math.min(river.points.length - 1, midIdx + 1)];
     const angle = Math.atan2(
       w2c(next.z, size) - w2c(prev.z, size),
       w2c(next.x, size) - w2c(prev.x, size)

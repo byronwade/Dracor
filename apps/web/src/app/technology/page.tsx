@@ -130,7 +130,7 @@ export default function TechnologyPage() {
           <p className="mb-6 text-lg text-stone-400">
             The road is open. The world is waiting.
           </p>
-          <Link href="/login" className="btn-primary text-lg">
+          <Link href="/account/login" className="btn-primary text-lg">
             Begin Your Journey
           </Link>
         </div>

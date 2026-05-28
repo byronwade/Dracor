@@ -1,4 +1,14 @@
-export type WeaponType = 'blade' | 'bow' | 'staff';
+export type WeaponType =
+  | 'dagger'
+  | 'longsword'
+  | 'arming_sword'
+  | 'greatsword'
+  | 'bow'
+  | 'arrows'
+  | 'axe'
+  | 'hammer'
+  | 'spear'
+  | 'staff';
 export type DragonMemory = 'ember' | 'stone' | 'storm';
 export type RaceId = 'dracor' | 'ironborn' | 'sylvhari' | 'ashwalker' | 'voidtouched' | 'bloodfane' | 'stoneguard' | 'grukhar' | 'skrix';
 export type Ancestry = RaceId;

@@ -144,9 +144,9 @@ export function computeFogState(
     distFogColor = lerpColor(distFogColor, dustFog, clamp01(weatherIntensity * 0.8));
   }
 
-  // Biome overrides fog color
+  // Biome influences fog color (blended to preserve time-of-day and weather tint)
   if (biome) {
-    distFogColor = biome.fogColor;
+    distFogColor = lerpColor(distFogColor, biome.fogColor, 0.6);
   }
 
   // -------------------------------------------------------------------------

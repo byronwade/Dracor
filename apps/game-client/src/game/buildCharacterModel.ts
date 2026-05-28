@@ -1,7 +1,9 @@
 import { Scene } from '@babylonjs/core/scene';
+import { ImportMeshAsync } from '@babylonjs/core/Loading/sceneLoader';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
@@ -9,6 +11,80 @@ import '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import '@babylonjs/core/Meshes/Builders/boxBuilder';
 import '@babylonjs/core/Meshes/Builders/torusBuilder';
 import '@babylonjs/core/Meshes/Builders/capsuleBuilder';
+import '@babylonjs/loaders/glTF';
+
+const GLB_MODELS: Record<string, string> = {
+  dracor: '/models/characters/dracor/dracor.glb',
+  ironborn: '/models/characters/ironborn/ironborn.glb',
+};
+
+export async function loadCharacterModel(
+  scene: Scene,
+  race: string,
+  weapon: string,
+  prefix: string
+): Promise<{ root: TransformNode; totalHeight: number }> {
+  const glbPath = GLB_MODELS[race];
+  if (!glbPath) {
+    return buildCharacterModel(scene, race, weapon, prefix);
+  }
+
+  const config = RACE_VISUALS[race] || RACE_VISUALS.dracor;
+
+  const result = await ImportMeshAsync(glbPath, scene);
+  const glbRoot = result.meshes[0];
+
+  let min = new Vector3(Infinity, Infinity, Infinity);
+  let max = new Vector3(-Infinity, -Infinity, -Infinity);
+  result.meshes.forEach((m) => {
+    if (!m.getBoundingInfo) return;
+    const bi = m.getBoundingInfo();
+    min = Vector3.Minimize(min, bi.boundingBox.minimumWorld);
+    max = Vector3.Maximize(max, bi.boundingBox.maximumWorld);
+  });
+
+  const center = Vector3.Center(min, max);
+  const extent = max.subtract(min);
+  const maxDim = Math.max(extent.x, extent.y, extent.z);
+  const targetHeight = config.height;
+  const scaleFactor = targetHeight / maxDim;
+
+  const root = new TransformNode(`${prefix}_root`, scene);
+  glbRoot.parent = root;
+  glbRoot.scaling = new Vector3(scaleFactor, scaleFactor, scaleFactor);
+  glbRoot.position.y = -min.y * scaleFactor;
+  glbRoot.position.x = -center.x * scaleFactor;
+  glbRoot.position.z = -center.z * scaleFactor;
+
+  const totalVerts = result.meshes.reduce((s, m) => s + m.getTotalVertices(), 0);
+  console.log(`[Character] Loaded ${result.meshes.length} parts, ${totalVerts.toLocaleString()} verts`);
+
+  // Convert PBR materials to StandardMaterial — reuse materials with same name
+  const matCache = new Map<string, StandardMaterial>();
+  result.meshes.forEach((m) => {
+    if (m.material && m.material.getClassName() === 'PBRMaterial') {
+      const pbr = m.material as any;
+      const matKey = m.material.name;
+      let std = matCache.get(matKey);
+      if (!std) {
+        std = new StandardMaterial(matKey + '_std', scene);
+        if (pbr.albedoColor) {
+          std.diffuseColor = pbr.albedoColor.clone();
+          std.diffuseColor.r = Math.min(1, std.diffuseColor.r * 1.5);
+          std.diffuseColor.g = Math.min(1, std.diffuseColor.g * 1.5);
+          std.diffuseColor.b = Math.min(1, std.diffuseColor.b * 1.5);
+        }
+        if (pbr.albedoTexture) std.diffuseTexture = pbr.albedoTexture;
+        std.specularColor = new Color3(0.15, 0.15, 0.15);
+        std.roughness = 0.85;
+        matCache.set(matKey, std);
+      }
+      m.material = std;
+    }
+  });
+
+  return { root, totalHeight: config.height };
+}
 
 export interface RaceVisuals {
   bodyType: 'heavy' | 'medium' | 'lean' | 'ethereal';
@@ -381,7 +457,11 @@ function buildWeapon(
   anchor.rotation.z = 0.2;
   anchor.parent = root;
 
-  if (weapon === 'blade') {
+  const bladeTypes = ['dagger', 'longsword', 'arming_sword', 'greatsword', 'axe', 'hammer', 'blade'];
+  const bowTypes = ['bow', 'arrows'];
+  const staffTypes = ['staff', 'spear'];
+
+  if (bladeTypes.includes(weapon)) {
     weaponMat.diffuseColor = new Color3(0.65, 0.65, 0.7);
     const blade = MeshBuilder.CreateBox(p('blade'), { width: 0.02 * S, height: 0.6 * S, depth: 0.006 * S }, scene);
     blade.position.y = 0.32 * S;
@@ -399,7 +479,7 @@ function buildWeapon(
     pommel.position.y = -0.09 * S;
     pommel.material = accentMat;
     pommel.parent = anchor;
-  } else if (weapon === 'bow') {
+  } else if (bowTypes.includes(weapon)) {
     const bowMat = new StandardMaterial(p('bowMat'), scene);
     bowMat.diffuseColor = new Color3(0.4, 0.25, 0.12);
     bowMat.specularColor = new Color3(0.15, 0.12, 0.08);
@@ -416,7 +496,7 @@ function buildWeapon(
     string.position.z = 0.06 * S;
     string.material = stringMat;
     string.parent = bowAnchor;
-  } else if (weapon === 'staff') {
+  } else if (staffTypes.includes(weapon)) {
     weaponMat.diffuseColor = new Color3(0.35, 0.22, 0.1);
     const staffAnchor = new TransformNode(p('staffAnchor'), scene);
     staffAnchor.position.set(handX, handY, handZ);

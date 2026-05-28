@@ -15,18 +15,19 @@ export async function getCharactersByUser(client: TypedSupabaseClient, userId: s
 export async function createCharacter(
   client: TypedSupabaseClient,
   userId: string,
-  input: CreateCharacterInput
+  input: CreateCharacterInput,
+  zoneId: string = 'ironvale_outskirts'
 ) {
   const { data, error } = await client
     .from('characters')
     .insert({
       user_id: userId,
       name: input.name,
-      ancestry: 'dracor',
+      ancestry: input.race,
       weapon: input.weapon,
       memory: input.memory,
       appearance: input.appearance as unknown as Record<string, string>,
-      zone_id: 'ironvale_town',
+      zone_id: zoneId,
       position_x: 0,
       position_y: 0,
       position_z: 0,

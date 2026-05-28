@@ -1,9 +1,9 @@
-import { validateInput, validateChatMessage } from "@dracor/netcode";
+import { validateInput } from "@dracor/netcode";
 import type { ClientInputMessage } from "@dracor/netcode";
 import { logger } from "../logging/logger";
 
-// Re-export netcode validation utilities for convenience
-export { validateInput, validateChatMessage } from "@dracor/netcode";
+// Re-export netcode validation for convenience
+export { validateInput } from "@dracor/netcode";
 
 const MAX_INPUTS_PER_SECOND = 30;
 const RATE_LIMIT_WINDOW_MS = 1000;

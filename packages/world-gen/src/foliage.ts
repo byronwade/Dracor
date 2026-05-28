@@ -1,6 +1,6 @@
 import { type BiomeType, type BiomeInfo } from './biomes';
 import { type WorldSeed, hashCombine } from './seed';
-import { CHUNK_SIZE } from './config';
+import { CHUNK_SIZE, HALF_WORLD } from './config';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -575,9 +575,6 @@ export function createFoliageSystem(worldSeed: WorldSeed): FoliageSystem {
     getWaterDistance: (wx: number, wz: number) => number
   ): FoliagePlacement[] {
     // World-space origin of this chunk's south-west corner.
-    // Following the convention in chunk.ts: worldX = gridX * CHUNK_SIZE - HALF_WORLD
-    // but we receive chunkGridX as the raw grid index so compute the origin directly.
-    const HALF_WORLD = 4096; // WORLD_SIZE / 2
     const originX = chunkGridX * CHUNK_SIZE - HALF_WORLD;
     const originZ = chunkGridZ * CHUNK_SIZE - HALF_WORLD;
 

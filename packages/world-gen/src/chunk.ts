@@ -22,7 +22,15 @@ export class ChunkGenerator {
   generateChunk(gridX: number, gridZ: number): ChunkHeightData {
     const key = chunkKey(gridX, gridZ);
     const cached = this.cache.get(key);
-    if (cached) return cached;
+    if (cached) {
+      // Promote to most-recently-used so eviction is LRU, not FIFO
+      const idx = this.cacheOrder.indexOf(key);
+      if (idx !== -1) {
+        this.cacheOrder.splice(idx, 1);
+        this.cacheOrder.push(key);
+      }
+      return cached;
+    }
 
     const worldX = gridX * CHUNK_SIZE - HALF_WORLD;
     const worldZ = gridZ * CHUNK_SIZE - HALF_WORLD;

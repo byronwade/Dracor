@@ -44,38 +44,42 @@ function PlayContent() {
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      setUserId(user.id);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+        setUserId(user.id);
 
-      let query = supabase
-        .from("characters")
-        .select("id, name, level, weapon, memory, ancestry, zone_id")
-        .eq("user_id", user.id);
-
-      if (characterIdParam) {
-        query = query.eq("id", characterIdParam);
-      } else if (characterNameParam) {
-        query = query.eq("name", characterNameParam);
-      }
-
-      const { data, error } = await query.limit(1).single();
-
-      if (error || !data) {
-        const { data: fallback } = await supabase
+        let query = supabase
           .from("characters")
           .select("id, name, level, weapon, memory, ancestry, zone_id")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+          .eq("user_id", user.id);
 
-        if (fallback) setCharacter(fallback);
-      } else {
-        setCharacter(data);
+        if (characterIdParam) {
+          query = query.eq("id", characterIdParam);
+        } else if (characterNameParam) {
+          query = query.eq("name", characterNameParam);
+        }
+
+        const { data, error } = await query.limit(1).single();
+
+        if (error || !data) {
+          const { data: fallback } = await supabase
+            .from("characters")
+            .select("id, name, level, weapon, memory, ancestry, zone_id")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (fallback) setCharacter(fallback);
+        } else {
+          setCharacter(data);
+        }
+      } catch (err) {
+        console.error("Failed to load character:", err);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     loadCharacter();
@@ -116,7 +120,7 @@ function PlayContent() {
           <p className="mb-6 text-stone-400">
             You need to create or select a character before entering the world.
           </p>
-          <Link href="/characters" className="btn-primary">
+          <Link href="/account/characters" className="btn-primary">
             Go to Characters
           </Link>
         </div>
@@ -148,7 +152,7 @@ function PlayContent() {
             </p>
           </div>
           <Link
-            href="/characters"
+            href="/account/characters"
             className="text-sm text-orange-500 transition-colors hover:text-orange-400"
           >
             Change
@@ -165,7 +169,7 @@ function PlayContent() {
         </button>
 
         <div className="space-y-3 text-left">
-          <h3 className="font-semibold text-stone-200">Connection Instructions</h3>
+          <h3 className="font-semibold text-stone-200">How It Works</h3>
           <ol className="list-inside list-decimal space-y-2 text-sm text-stone-400">
             <li>
               Click <strong className="text-stone-200">Launch Game</strong> to
@@ -175,17 +179,10 @@ function PlayContent() {
               The client will connect with your character data automatically.
             </li>
             <li>
-              If the client doesn&apos;t load, ensure the game server is running
-              at{" "}
-              <code className="rounded bg-stone-800 px-1.5 py-0.5 text-xs text-orange-400">
-                ws://localhost:2567
-              </code>
+              Use WASD to move, Shift to sprint, and Space to jump.
             </li>
             <li>
-              For local development, start all services with{" "}
-              <code className="rounded bg-stone-800 px-1.5 py-0.5 text-xs text-orange-400">
-                pnpm dev
-              </code>
+              Press F3 for the performance overlay.
             </li>
           </ol>
         </div>

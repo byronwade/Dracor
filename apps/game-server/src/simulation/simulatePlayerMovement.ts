@@ -1,8 +1,6 @@
 import type { PlayerState } from "../schema/PlayerState";
+import { MAX_MOVE_SPEED, MAX_SPRINT_SPEED } from "@dracor/netcode";
 import { clampToWorldBounds } from "./worldBounds";
-
-const WALK_SPEED = 6.0;
-const SPRINT_SPEED = 10.8;
 
 export function simulatePlayerMovement(
   player: PlayerState,
@@ -21,7 +19,7 @@ export function simulatePlayerMovement(
   const hasMoveInput = Math.abs(moveX) > 0.001 || Math.abs(moveZ) > 0.001;
 
   if (hasMoveInput) {
-    const speed = sprint ? SPRINT_SPEED : WALK_SPEED;
+    const speed = sprint ? MAX_SPRINT_SPEED : MAX_MOVE_SPEED;
 
     // Calculate direction relative to yaw
     const sinYaw = Math.sin(yaw);

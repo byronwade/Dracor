@@ -61,7 +61,8 @@ export interface ModelLoadConfig {
 }
 
 export async function loadModel(modelId: string, scene: Scene, config?: ModelLoadConfig): Promise<Mesh | null> {
-  const cached = modelCache.get(modelId);
+  const cacheKey = `${modelId}_lod${config?.lodLevel ?? 0}`;
+  const cached = modelCache.get(cacheKey);
   if (cached) return cached;
 
   const fileName = config?.fileName ?? `${modelId}.glb`;
@@ -87,6 +88,16 @@ export async function loadModel(modelId: string, scene: Scene, config?: ModelLoa
         if (!name.includes(lodSuffix)) return false;
         if (name.includes('sphere')) return false;
         if (name.includes('geonodes')) return false;
+        if (name.includes('sphere')) return false;
+        if (name.includes('geonodes')) return false;
+        // LOD filtering: lodLevel 0 = full detail, 1 = simplified
+        if (config?.lodLevel === 1) {
+          if (name.includes('twigs')) return false;
+          if (name.includes('tips')) return false;
+          if (name.includes('needles')) return false;
+          if (name.includes('primitive1')) return false;
+          if (name.includes('primitive2')) return false;
+        }
         return true;
       });
     } else {
@@ -132,7 +143,7 @@ export async function loadModel(modelId: string, scene: Scene, config?: ModelLoa
     const totalVerts = sourceMesh.getTotalVertices();
     console.log(`[Foliage] Created source mesh ${modelId}: ${totalVerts} vertices, material: ${sourceMesh.material?.name ?? 'none'}`);
 
-    modelCache.set(modelId, sourceMesh);
+    modelCache.set(cacheKey, sourceMesh);
     return sourceMesh;
   } catch (e) {
     console.warn(`[Foliage] Error loading ${fileName}:`, e);

@@ -1,11 +1,10 @@
 import { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 
 import type { InputState } from './InputController';
 import type { MultiplayerClient } from './MultiplayerClient';
-import { buildCharacterModel } from './buildCharacterModel';
+import { buildCharacterModel, loadCharacterModel } from './buildCharacterModel';
 
 export interface CharacterConfig {
   race: string;
@@ -19,7 +18,7 @@ const ACCELERATION = 12.0;
 const DECELERATION = 10.0;
 const GRAVITY = -20.0;
 const JUMP_VELOCITY = 8.0;
-const GROUND_SNAP_THRESHOLD = 0.5;
+const GROUND_SNAP_THRESHOLD = 3.0;
 const YAW_TURN_SPEED = 8.0;
 const MESH_SMOOTH_FACTOR = 0.14;
 const INPUT_SMOOTH_FACTOR = 8.0;
@@ -65,36 +64,23 @@ export class PlayerController {
   private smoothMoveX = 0;
   private smoothMoveZ = 0;
 
-  constructor(
-    scene: Scene,
+  private constructor(
+    root: TransformNode,
     spawnX: number,
     spawnY: number,
     spawnZ: number,
     getHeightAt: (x: number, z: number) => number,
-    charConfig?: CharacterConfig
   ) {
     this.getHeightAt = getHeightAt;
-
-    const race = charConfig?.race || 'dracor';
-    const weapon = charConfig?.weapon || 'blade';
-
-    const { root } = buildCharacterModel(scene, race, weapon, 'local');
     this.mesh = root;
 
     const groundY = getHeightAt(spawnX, spawnZ);
     this.motor = {
-      x: spawnX,
-      y: groundY,
-      z: spawnZ,
-      vx: 0,
-      vy: 0,
-      vz: 0,
-      yaw: 0,
-      visualYaw: 0,
-      grounded: true,
-      wasGrounded: true,
-      landTimer: 0,
-      slopeMultiplier: 1,
+      x: spawnX, y: groundY, z: spawnZ,
+      vx: 0, vy: 0, vz: 0,
+      yaw: 0, visualYaw: 0,
+      grounded: true, wasGrounded: true,
+      landTimer: 0, slopeMultiplier: 1,
     };
 
     this.meshX = spawnX;
@@ -103,33 +89,27 @@ export class PlayerController {
     this.syncMeshToMotor(1);
   }
 
-  setMultiplayerClient(client: MultiplayerClient): void {
-    this.multiplayer = client;
+  static async create(
+    scene: Scene,
+    spawnX: number,
+    spawnY: number,
+    spawnZ: number,
+    getHeightAt: (x: number, z: number) => number,
+    charConfig?: CharacterConfig
+  ): Promise<PlayerController> {
+    const race = charConfig?.race || 'dracor';
+    const weapon = charConfig?.weapon || 'arming_sword';
+    const { root } = await loadCharacterModel(scene, race, weapon, 'local');
+    return new PlayerController(root, spawnX, spawnY, spawnZ, getHeightAt);
   }
 
-  setCameraYaw(yaw: number): void {
-    this.cameraYaw = yaw;
-  }
-
-  getMesh(): TransformNode {
-    return this.mesh;
-  }
-
-  getPosition(): { x: number; y: number; z: number } {
-    return { x: this.motor.x, y: this.motor.y, z: this.motor.z };
-  }
-
-  getYaw(): number {
-    return this.motor.yaw;
-  }
-
-  isMoving(): boolean {
-    return Math.abs(this.motor.vx) > 0.1 || Math.abs(this.motor.vz) > 0.1;
-  }
-
-  isSprinting(): boolean {
-    return this.isMoving() && Math.sqrt(this.motor.vx * this.motor.vx + this.motor.vz * this.motor.vz) > WALK_SPEED * 1.1;
-  }
+  setMultiplayerClient(client: MultiplayerClient): void { this.multiplayer = client; }
+  setCameraYaw(yaw: number): void { this.cameraYaw = yaw; }
+  getMesh(): TransformNode { return this.mesh; }
+  getPosition(): { x: number; y: number; z: number } { return { x: this.motor.x, y: this.motor.y, z: this.motor.z }; }
+  getYaw(): number { return this.motor.yaw; }
+  isMoving(): boolean { return Math.abs(this.motor.vx) > 0.1 || Math.abs(this.motor.vz) > 0.1; }
+  isSprinting(): boolean { return this.isMoving() && Math.sqrt(this.motor.vx ** 2 + this.motor.vz ** 2) > WALK_SPEED * 1.1; }
 
   update(input: InputState, dt: number): void {
     this.computeSlope();
@@ -143,26 +123,20 @@ export class PlayerController {
 
   private computeSlope(): void {
     if (!this.motor.grounded) { this.motor.slopeMultiplier = 1; return; }
-    const speed = Math.sqrt(this.motor.vx * this.motor.vx + this.motor.vz * this.motor.vz);
+    const speed = Math.sqrt(this.motor.vx ** 2 + this.motor.vz ** 2);
     if (speed < 0.1) { this.motor.slopeMultiplier = 1; return; }
     const dirX = this.motor.vx / speed;
     const dirZ = this.motor.vz / speed;
     const hHere = this.getHeightAt(this.motor.x, this.motor.z);
     const hAhead = this.getHeightAt(this.motor.x + dirX * SLOPE_SAMPLE_DIST, this.motor.z + dirZ * SLOPE_SAMPLE_DIST);
     const slope = (hAhead - hHere) / SLOPE_SAMPLE_DIST;
-    if (slope > 0.05) {
-      this.motor.slopeMultiplier = Math.max(0.3, 1 - slope * UPHILL_PENALTY);
-    } else if (slope < -0.05) {
-      this.motor.slopeMultiplier = Math.min(1.3, 1 - slope * DOWNHILL_BOOST);
-    } else {
-      this.motor.slopeMultiplier = 1;
-    }
+    if (slope > 0.05) this.motor.slopeMultiplier = Math.max(0.3, 1 - slope * UPHILL_PENALTY);
+    else if (slope < -0.05) this.motor.slopeMultiplier = Math.min(1.3, 1 - slope * DOWNHILL_BOOST);
+    else this.motor.slopeMultiplier = 1;
   }
 
   private detectLanding(dt: number): void {
-    if (this.motor.grounded && !this.motor.wasGrounded) {
-      this.motor.landTimer = LAND_DECEL_DURATION;
-    }
+    if (this.motor.grounded && !this.motor.wasGrounded) this.motor.landTimer = LAND_DECEL_DURATION;
     this.motor.wasGrounded = this.motor.grounded;
     if (this.motor.landTimer > 0) {
       this.motor.landTimer -= dt;
@@ -181,65 +155,42 @@ export class PlayerController {
     const inputSmooth = Math.min(1, INPUT_SMOOTH_FACTOR * dt);
     this.smoothMoveX += (rawX - this.smoothMoveX) * inputSmooth;
     this.smoothMoveZ += (rawZ - this.smoothMoveZ) * inputSmooth;
-
     if (Math.abs(this.smoothMoveX) < 0.001) this.smoothMoveX = 0;
     if (Math.abs(this.smoothMoveZ) < 0.001) this.smoothMoveZ = 0;
 
-    const smoothLen = Math.sqrt(this.smoothMoveX * this.smoothMoveX + this.smoothMoveZ * this.smoothMoveZ);
+    const smoothLen = Math.sqrt(this.smoothMoveX ** 2 + this.smoothMoveZ ** 2);
     let moveX = this.smoothMoveX;
     let moveZ = this.smoothMoveZ;
     if (smoothLen > 1) { moveX /= smoothLen; moveZ /= smoothLen; }
 
     const alpha = this.cameraYaw;
-    const forwardX = -Math.cos(alpha);
-    const forwardZ = -Math.sin(alpha);
-    const rightX = -Math.sin(alpha);
-    const rightZ = Math.cos(alpha);
-
-    const worldX = moveX * rightX + moveZ * forwardX;
-    const worldZ = moveX * rightZ + moveZ * forwardZ;
+    const worldX = moveX * (-Math.sin(alpha)) + moveZ * (-Math.cos(alpha));
+    const worldZ = moveX * Math.cos(alpha) + moveZ * (-Math.sin(alpha));
 
     const baseSpeed = input.sprint ? WALK_SPEED * SPRINT_MULTIPLIER : WALK_SPEED;
     const maxSpeed = baseSpeed * this.motor.slopeMultiplier;
-    const desiredVx = worldX * maxSpeed;
-    const desiredVz = worldZ * maxSpeed;
 
-    const hasInput = smoothLen > 0.01;
-
-    if (hasInput) {
+    if (smoothLen > 0.01) {
       const accel = ACCELERATION * dt;
-      this.motor.vx += (desiredVx - this.motor.vx) * Math.min(1, accel);
-      this.motor.vz += (desiredVz - this.motor.vz) * Math.min(1, accel);
-
-      const targetYaw = Math.atan2(worldX, worldZ);
-      this.motor.yaw = lerpAngle(this.motor.yaw, targetYaw, Math.min(1, YAW_TURN_SPEED * dt));
+      this.motor.vx += (worldX * maxSpeed - this.motor.vx) * Math.min(1, accel);
+      this.motor.vz += (worldZ * maxSpeed - this.motor.vz) * Math.min(1, accel);
+      this.motor.yaw = lerpAngle(this.motor.yaw, Math.atan2(worldX, worldZ), Math.min(1, YAW_TURN_SPEED * dt));
     } else {
       const decel = DECELERATION * dt;
       this.motor.vx *= Math.max(0, 1 - decel);
       this.motor.vz *= Math.max(0, 1 - decel);
-
       if (Math.abs(this.motor.vx) < 0.01) this.motor.vx = 0;
       if (Math.abs(this.motor.vz) < 0.01) this.motor.vz = 0;
     }
 
-    const currentSpeed = Math.sqrt(this.motor.vx * this.motor.vx + this.motor.vz * this.motor.vz);
-    if (currentSpeed > maxSpeed) {
-      const scale = maxSpeed / currentSpeed;
-      this.motor.vx *= scale;
-      this.motor.vz *= scale;
-    }
+    const currentSpeed = Math.sqrt(this.motor.vx ** 2 + this.motor.vz ** 2);
+    if (currentSpeed > maxSpeed) { const s = maxSpeed / currentSpeed; this.motor.vx *= s; this.motor.vz *= s; }
 
-    if (input.jump && this.motor.grounded) {
-      this.motor.vy = JUMP_VELOCITY;
-      this.motor.grounded = false;
-    }
+    if (input.jump && this.motor.grounded) { this.motor.vy = JUMP_VELOCITY; this.motor.grounded = false; }
   }
 
   private applyPhysics(dt: number): void {
-    if (!this.motor.grounded) {
-      this.motor.vy += GRAVITY * dt;
-    }
-
+    if (!this.motor.grounded) this.motor.vy += GRAVITY * dt;
     this.motor.x += this.motor.vx * dt;
     this.motor.y += this.motor.vy * dt;
     this.motor.z += this.motor.vz * dt;
@@ -247,13 +198,8 @@ export class PlayerController {
 
   private groundSnap(): void {
     const groundY = this.getHeightAt(this.motor.x, this.motor.z);
-
     if (this.motor.y <= groundY + GROUND_SNAP_THRESHOLD) {
-      if (this.motor.y < groundY) {
-        this.motor.y = groundY;
-        this.motor.vy = 0;
-        this.motor.grounded = true;
-      } else if (this.motor.vy <= 0) {
+      if (this.motor.y < groundY || this.motor.vy <= 0) {
         this.motor.y = groundY;
         this.motor.vy = 0;
         this.motor.grounded = true;
@@ -265,36 +211,20 @@ export class PlayerController {
 
   private syncMeshToMotor(dt: number): void {
     const t = 1 - Math.pow(1 - MESH_SMOOTH_FACTOR, dt * 60);
-
-    const targetX = this.motor.x;
-    const targetY = this.motor.y;
-    const targetZ = this.motor.z;
-
-    this.meshX += (targetX - this.meshX) * t;
-    this.meshY += (targetY - this.meshY) * t;
-    this.meshZ += (targetZ - this.meshZ) * t;
-
+    this.meshX += (this.motor.x - this.meshX) * t;
+    this.meshY += (this.motor.y - this.meshY) * t;
+    this.meshZ += (this.motor.z - this.meshZ) * t;
     this.mesh.position.set(this.meshX, this.meshY, this.meshZ);
-
     this.motor.visualYaw = lerpAngle(this.motor.visualYaw, this.motor.yaw, Math.min(1, YAW_TURN_SPEED * dt));
-    this.mesh.rotation.y = this.motor.visualYaw;
+    this.mesh.rotation.y = this.motor.visualYaw + Math.PI / 2;
   }
 
   private maybeSendNetwork(input: InputState, dt: number): void {
     if (!this.multiplayer) return;
-
     const now = performance.now();
     if (now - this.lastNetworkSend < NETWORK_SEND_INTERVAL) return;
     this.lastNetworkSend = now;
-
-    this.multiplayer.sendInput(
-      input.moveX,
-      input.moveZ,
-      this.motor.yaw,
-      input.sprint,
-      input.jump,
-      dt
-    );
+    this.multiplayer.sendInput(input.moveX, input.moveZ, this.motor.yaw, input.sprint, input.jump, dt);
   }
 
   dispose(): void {

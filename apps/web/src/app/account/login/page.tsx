@@ -54,7 +54,7 @@ export default function AccountLoginPage() {
 
         router.push("/account");
       } else {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
         });
@@ -64,10 +64,14 @@ export default function AccountLoginPage() {
           return;
         }
 
-        setSuccess(
-          "Account created! Check your email for a confirmation link."
-        );
-        setMode("login");
+        if (signUpData?.session) {
+          router.push("/account");
+        } else {
+          setSuccess(
+            "Account created! Check your email for a confirmation link."
+          );
+          setMode("login");
+        }
       }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
