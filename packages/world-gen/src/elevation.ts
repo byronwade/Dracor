@@ -31,37 +31,57 @@ export function createElevationMap(worldSeed: WorldSeed): ElevationMapResult {
   const getElevation = (worldX: number, worldZ: number): number => {
     const cont = continental(worldX, worldZ);
 
-    if (cont < 0.05) {
+    // --- Ocean branch ---
+    const computeOcean = (): number => {
       const oceanDepth = SEA_LEVEL + MIN_HEIGHT * (1 - cont / 0.05);
-      const oceanDetail = microNoise(worldX * 0.005, worldZ * 0.005) * 3;
+      const oceanDetail = microNoise(worldX * 0.005, worldZ * 0.005) * 8;
       return oceanDepth + oceanDetail;
+    };
+
+    if (cont < 0.05) {
+      return computeOcean();
     }
 
-    const coastFactor = smoothstep01(Math.max(0, Math.min(1, (cont - 0.2) / 0.3)));
+    // --- Land branch ---
+    const computeLand = (): number => {
+      const coastFactor = smoothstep01(Math.max(0, Math.min(1, (cont - 0.2) / 0.3)));
 
-    const base = baseNoise(worldX * 0.0006, worldZ * 0.0006) * 40;
+      const base = baseNoise(worldX * 0.0006, worldZ * 0.0006) * 60;
 
-    const mMask = (mountainMask(worldX * 0.00015, worldZ * 0.00015) + 1) * 0.5;
-    const mRaw = mountainNoise(worldX * 0.0003, worldZ * 0.0003);
-    const mountains = mRaw * 120 * Math.pow(mMask, 2.5);
+      const mMask = (mountainMask(worldX * 0.00015, worldZ * 0.00015) + 1) * 0.5;
+      const mRaw = mountainNoise(worldX * 0.0003, worldZ * 0.0003);
+      const mountains = mRaw * 220 * Math.pow(mMask, 2.5);
 
-    const hills = hillNoise(worldX * 0.003, worldZ * 0.003) * 15;
-    const bumps = bumpNoise(worldX * 0.01, worldZ * 0.01) * 5;
-    const micro = microNoise(worldX * 0.04, worldZ * 0.04) * 1.5;
+      const hills = hillNoise(worldX * 0.003, worldZ * 0.003) * 25;
+      const bumps = bumpNoise(worldX * 0.01, worldZ * 0.01) * 8;
+      const micro = microNoise(worldX * 0.04, worldZ * 0.04) * 2.5;
 
-    const plateau = plateauNoise(worldX * 0.0004, worldZ * 0.0004);
-    const plateauEffect = Math.max(0, plateau) * 25;
+      const plateau = plateauNoise(worldX * 0.0004, worldZ * 0.0004);
+      const plateauEffect = Math.max(0, plateau) * 50;
 
-    let elevation = base + mountains + hills + bumps + micro + plateauEffect;
+      let elevation = base + mountains + hills + bumps + micro + plateauEffect;
 
-    elevation *= coastFactor;
+      elevation *= coastFactor;
 
-    if (cont < 0.35) {
-      const shallowT = cont / 0.35;
-      elevation = lerp(SEA_LEVEL - 8, elevation, shallowT);
+      if (cont < 0.35) {
+        const shallowT = cont / 0.35;
+        elevation = lerp(SEA_LEVEL - 8, elevation, shallowT);
+      }
+
+      return clamp(elevation, MIN_HEIGHT, MAX_HEIGHT);
+    };
+
+    // --- Coastal blend zone [0.05, 0.15] ---
+    // Smoothly blend between the ocean and land branches to avoid the ~7m
+    // elevation cliff that existed at the hard cont=0.05 boundary.
+    if (cont < 0.15) {
+      const blendT = smoothstep01((cont - 0.05) / 0.10);
+      const oceanElev = computeOcean();
+      const landElev = computeLand();
+      return lerp(oceanElev, landElev, blendT);
     }
 
-    return clamp(elevation, MIN_HEIGHT, MAX_HEIGHT);
+    return computeLand();
   };
 
   return { getElevation, getContinental: continental };
