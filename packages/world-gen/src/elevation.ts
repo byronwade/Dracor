@@ -28,6 +28,9 @@ export function createElevationMap(worldSeed: WorldSeed): ElevationMapResult {
 
   const plateauNoise = createFractalNoise2D(hashCombine(elevSeed, 11111), 2, 1.8, 0.7);
 
+  const calderaNoise = createFractalNoise2D(hashCombine(elevSeed, 44444), 2, 2.0, 0.5);
+  const canyonNoise = createWarpedNoise2D(hashCombine(detailSeed, 55555), 3, 0.5);
+
   const getElevation = (worldX: number, worldZ: number): number => {
     const cont = continental(worldX, worldZ);
 
@@ -60,6 +63,22 @@ export function createElevationMap(worldSeed: WorldSeed): ElevationMapResult {
       const plateauEffect = Math.max(0, plateau) * 50;
 
       let elevation = base + mountains + hills + bumps + micro + plateauEffect;
+
+      // Volcanic caldera: creates a ring-shaped depression in mountain regions
+      const calderaVal = calderaNoise(worldX * 0.00025, worldZ * 0.00025);
+      if (calderaVal > 0.7 && elevation > 80) {
+        const calderaStrength = (calderaVal - 0.7) / 0.3;
+        const calderaDepth = calderaStrength * 60;
+        const calderaRim = Math.sin(calderaStrength * Math.PI) * 30;
+        elevation = elevation - calderaDepth + calderaRim;
+      }
+
+      // Canyon carving: deep narrow cuts in mid-elevation terrain
+      const canyonVal = canyonNoise(worldX * 0.0008, worldZ * 0.0008);
+      if (canyonVal > 0.65 && elevation > 20 && elevation < 120) {
+        const canyonStrength = (canyonVal - 0.65) / 0.35;
+        elevation -= canyonStrength * 40;
+      }
 
       elevation *= coastFactor;
 
