@@ -3,12 +3,10 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { PointLight } from '@babylonjs/core/Lights/pointLight';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
-import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
 import HavokPhysics from '@babylonjs/havok';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import '@babylonjs/core/Rendering/depthRendererSceneComponent';
 import '@babylonjs/core/Physics/physicsEngineComponent';
-import '@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent';
 import '@babylonjs/core/Meshes/Builders/groundBuilder';
 import '@babylonjs/core/Meshes/Builders/cylinderBuilder';
 import '@babylonjs/core/Meshes/Builders/sphereBuilder';
@@ -657,51 +655,3 @@ function createTownLights(scene: Scene, getHeightAt: (x: number, z: number) => n
   }
 }
 
-function setupPostProcessing(scene: Scene, quality: QualitySettings): void {
-  scene.onAfterRenderObservable.addOnce(() => {
-    const camera = scene.activeCamera;
-    if (!camera) return;
-
-    try {
-      const pipeline = new DefaultRenderingPipeline(
-        'defaultPipeline',
-        true,
-        scene,
-        [camera]
-      );
-
-      pipeline.bloomEnabled = quality.bloomEnabled;
-      if (quality.bloomEnabled) {
-        pipeline.bloomThreshold = 0.8;
-        pipeline.bloomWeight = 0.15;
-        pipeline.bloomKernel = 64;
-      }
-
-      pipeline.imageProcessingEnabled = true;
-      pipeline.imageProcessing.toneMappingEnabled = true;
-      pipeline.imageProcessing.toneMappingType = 2;
-      pipeline.imageProcessing.exposure = 0.9;
-      pipeline.imageProcessing.contrast = 1.2;
-
-      pipeline.imageProcessing.vignetteEnabled = true;
-      pipeline.imageProcessing.vignetteWeight = 2.5;
-      pipeline.imageProcessing.vignetteCameraFov = 0.6;
-
-      pipeline.depthOfFieldEnabled = false;
-
-      pipeline.grainEnabled = true;
-      pipeline.grain.intensity = 4;
-      pipeline.grain.animated = true;
-
-      pipeline.chromaticAberrationEnabled = quality.tier === 'ultra';
-      if (pipeline.chromaticAberrationEnabled) {
-        pipeline.chromaticAberration.aberrationAmount = 8;
-        pipeline.chromaticAberration.radialIntensity = 0.3;
-      }
-
-      console.log('[PostProcess] Rendering pipeline configured');
-    } catch (err) {
-      console.warn('[PostProcess] Failed to create rendering pipeline:', err);
-    }
-  });
-}
